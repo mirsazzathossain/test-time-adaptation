@@ -3,12 +3,11 @@ Adapted from: https://github.com/azshue/TPT/blob/main/clip/custom_clip.py
 Paper: https://arxiv.org/pdf/2209.07511.pdf
 """
 
-import logging
-
 import torch
 import torch.nn as nn
-from open_clip import create_model_and_transforms, get_tokenizer
+import logging
 
+from open_clip import create_model_and_transforms, get_tokenizer
 from datasets.cls_names import get_class_names
 
 logger = logging.getLogger(__name__)
@@ -33,24 +32,12 @@ class TextEncoder(nn.Module):
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = (
-            x[torch.arange(x.shape[0]), tokenized_prompts.argmax(dim=-1)]
-            @ self.text_projection
-        )
+        x = x[torch.arange(x.shape[0]), tokenized_prompts.argmax(dim=-1)] @ self.text_projection
         return x
 
 
 class PromptLearner(nn.Module):
-    def __init__(
-        self,
-        clip_model,
-        arch_name,
-        class_names,
-        n_ctx=16,
-        ctx_init=None,
-        class_token_pos="end",
-        learned_cls=False,
-    ):
+    def __init__(self, clip_model, arch_name, class_names, n_ctx=16, ctx_init=None, class_token_pos='end', learned_cls=False):
         super().__init__()
         self.n_cls = len(class_names)
         self.learned_cls = learned_cls
@@ -64,11 +51,9 @@ class PromptLearner(nn.Module):
 
         if ctx_init:
             # use given words to initialize context vectors
-            logger.info(
-                "Initializing the context with given words: [{}]".format(ctx_init)
-            )
+            logger.info("Initializing the context with given words: [{}]".format(ctx_init))
             ctx_init = ctx_init.replace("_", " ")
-            if "[CLS]" in ctx_init:
+            if '[CLS]' in ctx_init:
                 ctx_list = ctx_init.split(" ")
                 split_idx = ctx_list.index("[CLS]")
                 ctx_init = ctx_init.replace("[CLS] ", "")
@@ -80,7 +65,7 @@ class PromptLearner(nn.Module):
             prompt = self.tokenize(ctx_init).to(self.device)
             with torch.no_grad():
                 embedding = self.token_embedding(prompt).type(self.dtype)
-            ctx_vectors = embedding[0, 1 : 1 + n_ctx, :]
+            ctx_vectors = embedding[0, 1: 1 + n_ctx, :]
             prompt_prefix = ctx_init
         else:
             logger.info("Random initialization: initializing a generic context")
@@ -115,9 +100,7 @@ class PromptLearner(nn.Module):
             name_lens = [len(self.tokenize(name)) for name in class_names]
             prompts = [self.prompt_prefix + " " + name + "." for name in class_names]
         else:
-            cls_vectors = torch.empty(
-                self.n_cls, 1, self.ctx_dim, dtype=self.dtype
-            )  # assume each learnable cls_token is only 1 word
+            cls_vectors = torch.empty(self.n_cls, 1, self.ctx_dim, dtype=self.dtype)  # assume each learnable cls_token is only 1 word
             nn.init.normal_(cls_vectors, std=0.02)
             cls_token = "X"
             name_lens = [1 for _ in class_names]
@@ -125,12 +108,10 @@ class PromptLearner(nn.Module):
 
             # TODO: re-init the cls parameters
             self.cls_init_state = cls_vectors.detach().clone()
-            self.cls = nn.Parameter(cls_vectors)  # to be optimized
+            self.cls = nn.Parameter(cls_vectors) # to be optimized
 
         with torch.no_grad():
-            tokenized_prompts = torch.cat([self.tokenize(p) for p in prompts]).to(
-                self.device
-            )
+            tokenized_prompts = torch.cat([self.tokenize(p) for p in prompts]).to(self.device)
             embedding = self.token_embedding(tokenized_prompts).type(self.dtype)
 
         # These token vectors will be saved when in save_model(),
@@ -138,13 +119,9 @@ class PromptLearner(nn.Module):
         # those computed using the current class names
         self.register_buffer("token_prefix", embedding[:, :1, :])  # SOS
         if self.learned_cls:
-            self.register_buffer(
-                "token_suffix", embedding[:, 1 + self.n_ctx + 1 :, :]
-            )  # ..., EOS
+            self.register_buffer("token_suffix", embedding[:, 1 + self.n_ctx + 1:, :])  # ..., EOS
         else:
-            self.register_buffer(
-                "token_suffix", embedding[:, 1 + self.n_ctx :, :]
-            )  # CLS, EOS
+            self.register_buffer("token_suffix", embedding[:, 1 + self.n_ctx:, :])  # CLS, EOS
 
         self.name_lens = name_lens
         self.tokenized_prompts = tokenized_prompts
@@ -188,19 +165,17 @@ class PromptLearner(nn.Module):
                 )
         elif self.class_token_position == "middle":
             if self.split_idx is not None:
-                half_n_ctx = (
-                    self.split_idx
-                )  # split the ctx at the position of [CLS] in `ctx_init`
+                half_n_ctx = self.split_idx  # split the ctx at the position of [CLS] in `ctx_init`
             else:
                 half_n_ctx = self.n_ctx // 2
             prompts = []
             for i in range(self.n_cls):
                 name_len = self.name_lens[i]
-                prefix_i = prefix[i : i + 1, :, :]
-                class_i = suffix[i : i + 1, :name_len, :]
-                suffix_i = suffix[i : i + 1, name_len:, :]
-                ctx_i_half1 = ctx[i : i + 1, :half_n_ctx, :]
-                ctx_i_half2 = ctx[i : i + 1, half_n_ctx:, :]
+                prefix_i = prefix[i: i + 1, :, :]
+                class_i = suffix[i: i + 1, :name_len, :]
+                suffix_i = suffix[i: i + 1, name_len:, :]
+                ctx_i_half1 = ctx[i: i + 1, :half_n_ctx, :]
+                ctx_i_half2 = ctx[i: i + 1, half_n_ctx:, :]
                 prompt = torch.cat(
                     [
                         prefix_i,  # (1, 1, dim)
@@ -218,10 +193,10 @@ class PromptLearner(nn.Module):
             prompts = []
             for i in range(self.n_cls):
                 name_len = self.name_lens[i]
-                prefix_i = prefix[i : i + 1, :, :]
-                class_i = suffix[i : i + 1, :name_len, :]
-                suffix_i = suffix[i : i + 1, name_len:, :]
-                ctx_i = ctx[i : i + 1, :, :]
+                prefix_i = prefix[i: i + 1, :, :]
+                class_i = suffix[i: i + 1, :name_len, :]
+                suffix_i = suffix[i: i + 1, name_len:, :]
+                ctx_i = ctx[i: i + 1, :, :]
                 prompt = torch.cat(
                     [
                         prefix_i,  # (1, 1, dim)
@@ -235,26 +210,15 @@ class PromptLearner(nn.Module):
             prompts = torch.cat(prompts, dim=0)
 
         else:
-            raise ValueError(
-                f"Class token position '{self.class_token_position}' is not supported."
-                f" Choose from: end, middle, front"
-            )
+            raise ValueError(f"Class token position '{self.class_token_position}' is not supported."
+                             f" Choose from: end, middle, front")
 
         return prompts
 
 
 class ClipTestTimePromptTuning(nn.Module):
-    def __init__(
-        self,
-        clip_model,
-        normalization,
-        arch_name,
-        dataset_name,
-        n_ctx=16,
-        ctx_init=None,
-        class_token_pos="end",
-        learned_cls=False,
-    ):
+    def __init__(self, clip_model, normalization, arch_name, dataset_name, n_ctx=16,
+                 ctx_init=None, class_token_pos='end', learned_cls=False):
         super(ClipTestTimePromptTuning, self).__init__()
 
         # setup the underlying CLIP model
@@ -267,15 +231,7 @@ class ClipTestTimePromptTuning(nn.Module):
         class_names = get_class_names(dataset_name)
 
         # prompt tuning
-        self.prompt_learner = PromptLearner(
-            clip_model,
-            arch_name,
-            class_names,
-            n_ctx,
-            ctx_init,
-            class_token_pos,
-            learned_cls,
-        )
+        self.prompt_learner = PromptLearner(clip_model, arch_name, class_names, n_ctx, ctx_init, class_token_pos, learned_cls)
 
     @property
     def dtype(self):

@@ -36,11 +36,8 @@ class Registry:
         self._obj_map = dict()
 
     def _do_register(self, name: str, obj: Any) -> None:
-        assert (
-            name not in self._obj_map
-        ), "An object named '{}' was already registered in '{}' registry!".format(
-            name, self._name
-        )
+        assert name not in self._obj_map, \
+            "An object named '{}' was already registered in '{}' registry!".format(name, self._name)
         self._obj_map[name] = obj
 
     def register(self, obj: Any = None) -> Any:
@@ -67,11 +64,7 @@ class Registry:
 
     def get(self, name: str) -> Any:
         if name not in self._obj_map:
-            raise KeyError(
-                'Object name "{}" does not exist in "{}" registry'.format(
-                    name, self._name
-                )
-            )
+            raise KeyError('Object name "{}" does not exist in "{}" registry'.format(name, self._name))
 
         return self._obj_map[name]
 

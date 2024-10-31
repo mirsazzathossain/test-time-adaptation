@@ -2,8 +2,8 @@
 # Based on the ResNet implementation in torchvision
 # https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py
 
-import logging
 import math
+import logging
 
 import torch
 from torch import nn
@@ -58,17 +58,13 @@ class Downsample(nn.Module):
 
 
 class ResNetCifar(nn.Module):
-    def __init__(
-        self, depth, width=1, classes=10, channels=3, norm_layer=nn.BatchNorm2d
-    ):
+    def __init__(self, depth, width=1, classes=10, channels=3, norm_layer=nn.BatchNorm2d):
         assert (depth - 2) % 6 == 0  # depth is 6N+2
         self.N = (depth - 2) // 6
         super(ResNetCifar, self).__init__()
 
         # Following the Wide ResNet convention, we fix the very first convolution
-        self.conv1 = nn.Conv2d(
-            channels, 16, kernel_size=3, stride=1, padding=1, bias=False
-        )
+        self.conv1 = nn.Conv2d(channels, 16, kernel_size=3, stride=1, padding=1, bias=False)
         self.inplanes = 16
         self.layer1 = self._make_layer(norm_layer, 16 * width)
         self.layer2 = self._make_layer(norm_layer, 32 * width, stride=2)
@@ -82,7 +78,7 @@ class ResNetCifar(nn.Module):
         for m in self.modules():
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
-                m.weight.data.normal_(0, math.sqrt(2.0 / n))
+                m.weight.data.normal_(0, math.sqrt(2. / n))
 
     def _make_layer(self, norm_layer, planes, stride=1):
         downsample = None
@@ -110,6 +106,5 @@ class ResNetCifar(nn.Module):
 def build_resnet26(groups=8, num_classes=10):
     def gn_helper(planes):
         return nn.GroupNorm(groups, planes)
-
     model = ResNetCifar(26, 1, channels=3, classes=num_classes, norm_layer=gn_helper)
     return model
