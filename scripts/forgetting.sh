@@ -1,7 +1,5 @@
 #!/bin/bash -l
 
-conda activate tta
-
 methods=(roid)    # choose from: source, norm_test, tent, rpl, eta, eata, rdump, sar, cotta, rotta, adacontrast, lame, cmf, deyo, rmt, gtta, roid
 seeds=(1)         # to reproduce the benchmark results, use: (1 2 3 4 5)
 options=()        # for RMT source-free without warm-up use: options=("RMT.LAMBDA_CE_SRC 0.0 RMT.NUM_SAMPLES_WARM_UP 0")

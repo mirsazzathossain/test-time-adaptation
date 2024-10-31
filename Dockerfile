@@ -7,6 +7,9 @@ WORKDIR /app
 # Copy all contents to the container
 COPY . /app
 
+# Set the environment variable
+ENV WANDB_API_KEY=${WANDB_API_KEY}
+
 # Install git
 RUN apt-get update && apt-get install -y git
 

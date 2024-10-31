@@ -1,7 +1,5 @@
 #!/bin/bash -l
 
-conda activate tta
-
 methods=(source)              # choose (one or multiple) from: source, norm_test, tent, rpl, eta, eata, rdump, sar, cotta, rotta, adacontrast, lame, deyo, cmf, tpt, vte, rmt, gtta, roid
 seeds=(1)                     # specify something like: (1 2 3 4 5)
 mode=generalization_datasets  # choose from: imagenet_variations , generalization_datasets

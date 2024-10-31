@@ -1,31 +1,34 @@
-import os
-import torch
 import logging
-import numpy as np
-import methods
+import os
 
-from models.model import get_model
-from utils.misc import print_memory_info
-from utils.eval_utils import get_accuracy, eval_domain_dict
-from utils.registry import ADAPTATION_REGISTRY
+import numpy as np
+import torch
+
+from conf import cfg, ckpt_path_to_domain_seq, get_num_classes, load_cfg_from_args
 from datasets.data_loading import get_test_loader
-from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq
+from models.model import get_model
+from utils.eval_utils import eval_domain_dict, get_accuracy
+from utils.misc import print_memory_info
+from utils.registry import ADAPTATION_REGISTRY
 
 logger = logging.getLogger(__name__)
 
 
 def evaluate(description):
     load_cfg_from_args(description)
-    valid_settings = ["reset_each_shift",           # reset the model state after the adaptation to a domain
-                      "continual",                  # train on sequence of domain shifts without knowing when a shift occurs
-                      "gradual",                    # sequence of gradually increasing / decreasing domain shifts
-                      "mixed_domains",              # consecutive test samples are likely to originate from different domains
-                      "correlated",                 # sorted by class label
-                      "mixed_domains_correlated",   # mixed domains + sorted by class label
-                      "gradual_correlated",         # gradual domain shifts + sorted by class label
-                      "reset_each_shift_correlated"
-                      ]
-    assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
+    valid_settings = [
+        "reset_each_shift",  # reset the model state after the adaptation to a domain
+        "continual",  # train on sequence of domain shifts without knowing when a shift occurs
+        "gradual",  # sequence of gradually increasing / decreasing domain shifts
+        "mixed_domains",  # consecutive test samples are likely to originate from different domains
+        "correlated",  # sorted by class label
+        "mixed_domains_correlated",  # mixed domains + sorted by class label
+        "gradual_correlated",  # gradual domain shifts + sorted by class label
+        "reset_each_shift_correlated",
+    ]
+    assert (
+        cfg.SETTING in valid_settings
+    ), f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_classes = get_num_classes(dataset_name=cfg.CORRUPTION.DATASET)
@@ -38,29 +41,45 @@ def evaluate(description):
 
     # setup test-time adaptation method
     available_adaptations = ADAPTATION_REGISTRY.registered_names()
-    assert cfg.MODEL.ADAPTATION in available_adaptations, \
-        f"The adaptation '{cfg.MODEL.ADAPTATION}' is not supported! Choose from: {available_adaptations}"
-    model = ADAPTATION_REGISTRY.get(cfg.MODEL.ADAPTATION)(cfg=cfg, model=base_model, num_classes=num_classes)
-    logger.info(f"Successfully prepared test-time adaptation method: {cfg.MODEL.ADAPTATION}")
+    assert (
+        cfg.MODEL.ADAPTATION in available_adaptations
+    ), f"The adaptation '{cfg.MODEL.ADAPTATION}' is not supported! Choose from: {available_adaptations}"
+    model = ADAPTATION_REGISTRY.get(cfg.MODEL.ADAPTATION)(
+        cfg=cfg, model=base_model, num_classes=num_classes
+    )
+    logger.info(
+        f"Successfully prepared test-time adaptation method: {cfg.MODEL.ADAPTATION}"
+    )
 
     # get the test sequence containing the corruptions or domain names
     if cfg.CORRUPTION.DATASET == "domainnet126":
         # extract the domain sequence for a specific checkpoint.
         domain_sequence = ckpt_path_to_domain_seq(ckpt_path=cfg.MODEL.CKPT_PATH)
-    elif cfg.CORRUPTION.DATASET in ["imagenet_d", "imagenet_d109"] and not cfg.CORRUPTION.TYPE[0]:
+    elif (
+        cfg.CORRUPTION.DATASET in ["imagenet_d", "imagenet_d109"]
+        and not cfg.CORRUPTION.TYPE[0]
+    ):
         # domain_sequence = ["clipart", "infograph", "painting", "quickdraw", "real", "sketch"]
         domain_sequence = ["clipart", "infograph", "painting", "real", "sketch"]
     else:
         domain_sequence = cfg.CORRUPTION.TYPE
-    logger.info(f"Using {cfg.CORRUPTION.DATASET} with the following domain sequence: {domain_sequence}")
+    logger.info(
+        f"Using {cfg.CORRUPTION.DATASET} with the following domain sequence: {domain_sequence}"
+    )
 
     # prevent iterating multiple times over the same data in the mixed_domains setting
     domain_seq_loop = ["mixed"] if "mixed_domains" in cfg.SETTING else domain_sequence
 
     # setup the severities for the gradual setting
-    if "gradual" in cfg.SETTING and cfg.CORRUPTION.DATASET in ["cifar10_c", "cifar100_c", "imagenet_c"] and len(cfg.CORRUPTION.SEVERITY) == 1:
+    if (
+        "gradual" in cfg.SETTING
+        and cfg.CORRUPTION.DATASET in ["cifar10_c", "cifar100_c", "imagenet_c"]
+        and len(cfg.CORRUPTION.SEVERITY) == 1
+    ):
         severities = [1, 2, 3, 4, 5, 4, 3, 2, 1]
-        logger.info(f"Using the following severity sequence for each domain: {severities}")
+        logger.info(
+            f"Using the following severity sequence for each domain: {severities}"
+        )
     else:
         severities = cfg.CORRUPTION.SEVERITY
 
@@ -96,12 +115,14 @@ def evaluate(description):
                 delta_dirichlet=cfg.TEST.DELTA_DIRICHLET,
                 batch_size=cfg.TEST.BATCH_SIZE,
                 shuffle=False,
-                workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count())
+                workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count()),
             )
 
             if i_dom == 0:
                 # Note that the input normalization is done inside of the model
-                logger.info(f"Using the following data transformation:\n{test_data_loader.dataset.transform}")
+                logger.info(
+                    f"Using the following data transformation:\n{test_data_loader.dataset.transform}"
+                )
 
             # evaluate the model
             acc, domain_dict, num_samples = get_accuracy(
@@ -112,18 +133,22 @@ def evaluate(description):
                 setting=cfg.SETTING,
                 domain_dict=domain_dict,
                 print_every=cfg.PRINT_EVERY,
-                device=device
+                device=device,
             )
 
-            err = 1. - acc
+            err = 1.0 - acc
             errs.append(err)
             if severity == 5 and domain_name != "none":
                 errs_5.append(err)
 
-            logger.info(f"{cfg.CORRUPTION.DATASET} error % [{domain_name}{severity}][#samples={num_samples}]: {err:.2%}")
+            logger.info(
+                f"{cfg.CORRUPTION.DATASET} error % [{domain_name}{severity}][#samples={num_samples}]: {err:.2%}"
+            )
 
     if len(errs_5) > 0:
-        logger.info(f"mean error: {np.mean(errs):.2%}, mean error at 5: {np.mean(errs_5):.2%}")
+        logger.info(
+            f"mean error: {np.mean(errs):.2%}, mean error at 5: {np.mean(errs_5):.2%}"
+        )
     else:
         logger.info(f"mean error: {np.mean(errs):.2%}")
 
@@ -135,5 +160,5 @@ def evaluate(description):
         print_memory_info()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     evaluate('"Evaluation.')
