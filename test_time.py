@@ -3,6 +3,8 @@ import torch
 import logging
 import numpy as np
 import methods
+import wandb
+import time
 
 from models.model import get_model
 from utils.misc import print_memory_info
@@ -26,6 +28,10 @@ def evaluate(description):
                       "reset_each_shift_correlated"
                       ]
     assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
+
+    # setup wandb logging
+    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET + "-" + time.strftime("%y%m%d-%H%M%S")
+    wandb.config.update(cfg)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     num_classes = get_num_classes(dataset_name=cfg.CORRUPTION.DATASET)
@@ -134,6 +140,10 @@ def evaluate(description):
     if cfg.TEST.DEBUG:
         print_memory_info()
 
+    # save the ckpt to wandb
+    wandb.save(cfg.CKPT_DIR)
+    wandb.finish()
 
 if __name__ == '__main__':
+    wandb.init(project="test-time-adaptation", dir="output")
     evaluate('"Evaluation.')

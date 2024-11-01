@@ -5,7 +5,8 @@ FROM pytorch/pytorch:latest
 WORKDIR /app
 
 # Copy all contents to the container
-COPY . /app
+# COPY . /app
+COPY requirements.txt /app
 
 # Set the environment variable
 ENV WANDB_API_KEY=${WANDB_API_KEY}
