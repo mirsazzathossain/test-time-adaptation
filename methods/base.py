@@ -68,7 +68,8 @@ class TTAMethod(nn.Module):
         # note: if the self.model is never reset, like for continual adaptation,
         # then skipping the state copy would save memory
         self.models = [self.model]
-        self.model_states, self.optimizer_state = self.copy_model_and_optimizer()
+        self.optimizers = [self.optimizer]
+        self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
 
         # setup for mixed-precision or single precision
         self.mixed_precision = cfg.MIXED_PRECISION
@@ -164,7 +165,7 @@ class TTAMethod(nn.Module):
     def configure_model(self):
         raise NotImplementedError
 
-    def collect_params(self):
+    def collect_params(self, model=None):
         """Collect all trainable parameters.
         Walk the model's modules and collect all parameters.
         Return the parameters and their names.
@@ -172,32 +173,38 @@ class TTAMethod(nn.Module):
         """
         params = []
         names = []
-        for nm, m in self.model.named_modules():
+
+        if model is None:
+            model = self.model
+        for nm, m in model.named_modules():
             for np, p in m.named_parameters():
                 if np in ["weight", "bias"] and p.requires_grad:
                     params.append(p)
                     names.append(f"{nm}.{np}")
         return params, names
 
-    def setup_optimizer(self):
+    def setup_optimizer(self, params=None, lr=None):
+        lr = lr if lr is not None else self.cfg.OPTIM.LR
+        params = params if params is not None else self.params
+
         if self.cfg.OPTIM.METHOD == "Adam":
             return torch.optim.Adam(
-                self.params,
-                lr=self.cfg.OPTIM.LR,
+                params,
+                lr=lr,
                 betas=(self.cfg.OPTIM.BETA, 0.999),
                 weight_decay=self.cfg.OPTIM.WD,
             )
         elif self.cfg.OPTIM.METHOD == "AdamW":
             return torch.optim.AdamW(
-                self.params,
-                lr=self.cfg.OPTIM.LR,
+                params,
+                lr=lr,
                 betas=(self.cfg.OPTIM.BETA, 0.999),
                 weight_decay=self.cfg.OPTIM.WD,
             )
         elif self.cfg.OPTIM.METHOD == "SGD":
             return torch.optim.SGD(
-                self.params,
-                lr=self.cfg.OPTIM.LR,
+                params,
+                lr=lr,
                 momentum=self.cfg.OPTIM.MOMENTUM,
                 dampening=self.cfg.OPTIM.DAMPENING,
                 weight_decay=self.cfg.OPTIM.WD,
@@ -206,9 +213,14 @@ class TTAMethod(nn.Module):
         else:
             raise NotImplementedError
 
-    def get_number_trainable_params(self):
-        trainable = sum(p.numel() for p in self.params) if len(self.params) > 0 else 0
-        total = sum(p.numel() for p in self.model.parameters())
+    def get_number_trainable_params(self, params=None, model=None):
+
+        if params is None and model is None:
+            trainable = sum(p.numel() for p in self.params) if len(self.params) > 0 else 0
+            total = sum(p.numel() for p in self.model.parameters())
+        else:
+            trainable = sum(p.numel() for p in params) if len(params) > 0 else 0
+            total = sum(p.numel() for p in model.parameters())
         logger.info(
             f"#Trainable/total parameters: {trainable:,}/{total:,} \t Ratio: {trainable / total * 100:.3f}% "
         )
@@ -216,7 +228,7 @@ class TTAMethod(nn.Module):
 
     def reset(self):
         """Reset the model and optimizer state to the initial source state"""
-        if self.model_states is None or self.optimizer_state is None:
+        if self.model_states is None or self.optimizer_states is None:
             raise Exception("cannot reset without saved model/optimizer state")
         self.load_model_and_optimizer()
 
