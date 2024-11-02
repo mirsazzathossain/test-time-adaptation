@@ -165,11 +165,17 @@ class TTAMethod(nn.Module):
     def configure_model(self):
         raise NotImplementedError
 
-    def collect_params(self, model=None):
+    def collect_params(self, model=None, bn=None):
         """Collect all trainable parameters.
         Walk the model's modules and collect all parameters.
         Return the parameters and their names.
         Note: other choices of parameterization are possible!
+
+        Options:
+            - collect_params() : as same as the original implementation
+            - collect_params(model) : collect param custom model
+            - collect_params(model, bn=True) : collect param bn
+            - collect_params(model, bn=False) : collect param without bn
         """
         params = []
         names = []
@@ -177,8 +183,11 @@ class TTAMethod(nn.Module):
         if model is None:
             model = self.model
         for nm, m in model.named_modules():
+            bn_layer = isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm))
             for np, p in m.named_parameters():
                 if np in ["weight", "bias"] and p.requires_grad:
+                    if bn is not None and bn_layer != bn:
+                        continue
                     params.append(p)
                     names.append(f"{nm}.{np}")
         return params, names

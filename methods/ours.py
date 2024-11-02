@@ -47,6 +47,7 @@ class Ours(TTAMethod):
             num_samples=cfg.SOURCE.NUM_SAMPLES,
             percentage=cfg.SOURCE.PERCENTAGE,
             workers=min(cfg.SOURCE.NUM_WORKERS, os.cpu_count()),
+            use_clip=cfg.MODEL.USE_CLIP,
         )
         self.src_loader_iter = iter(self.src_loader)
         self.contrast_mode = cfg.CONTRAST.MODE
@@ -85,48 +86,46 @@ class Ours(TTAMethod):
 
         # new_e
 
-        # self.configure_model_bn()
-        # self.params_bn, param_names_bn = self.collect_params_bn(self.model)
-        # self.optimizer_bn = self.setup_optimizer_custom(self.params_bn) if len(self.params_bn) > 0 else None
+        # self.configure_model()
+        # self.params_bn, param_names_bn = self.collect_params(self.model, bn=True)
+        # self.optimizer_bn = self.setup_optimizer(self.params_bn) if len(self.params_bn) > 0 else None
 
-        self.configure_model_custom(self.model_stu)
-        self.params, param_names = self.collect_params_custom(self.model_stu)
+        self.configure_model(self.model_stu)
+        self.params, param_names = self.collect_params(self.model_stu)
         lr = self.cfg.OPTIM.LR
         self.optimizer_bn = (
-            self.setup_optimizer_custom(self.params, lr)
-            if len(self.params) > 0
-            else None
+            self.setup_optimizer(self.params, lr) if len(self.params) > 0 else None
         )
 
         self.num_trainable_params1, self.num_total_params = (
-            self.get_number_trainable_params2(self.params, self.model)
+            self.get_number_trainable_params(self.params, self.model)
         )
-        print("Number of total parameters in the model: ", self.num_total_params)
-        print(
-            "Number of trainable parameters of bn in student: ",
+        logger.info(
+            "Number of trainable parameters of bn in student: %s",
             self.num_trainable_params1,
         )
+        logger.info(
+            "Number of total parameters in the model: %s", self.num_total_params
+        )
 
-        # self.configure_model_bn(self.model_ema)
-        # self.params_ema_bn, param_names_ema_bn = self.collect_params_custom(self.model_ema)
-        # self.optimizer_without_bn = self.setup_optimizer_custom(self.params_ema_bn) if len(self.params_ema_bn) > 0 else None
+        # self.configure_model(self.model_ema, bn=True)
+        # self.params_ema_bn, param_names_ema_bn = self.collect_params(self.model_ema)
+        # self.optimizer_without_bn = self.setup_optimizer(self.params_ema_bn) if len(self.params_ema_bn) > 0 else None
 
-        # self.num_trainable_params2, self.num_total_params = self.get_number_trainable_params2(self.params_ema_bn, self.model)
+        # self.num_trainable_params2, self.num_total_params = self.get_number_trainable_params(self.params_ema_bn, self.model)
         # print("Number of trainable parameters without bn in student: ", self.num_trainable_params2)
 
         # new_s
-        self.configure_model_bn(self.model_ema_2)
-        self.params_ema_2, param_names_ema_2 = self.collect_params_custom(
-            self.model_ema_2
-        )
+        self.configure_model(self.model_ema_2, bn=True)
+        self.params_ema_2, param_names_ema_2 = self.collect_params(self.model_ema_2)
         self.optimizer_ema_2 = (
-            self.setup_optimizer_custom(self.params_ema_2, 0.01)
+            self.setup_optimizer(self.params_ema_2, 0.01)
             if len(self.params_ema_2) > 0
             else None
         )
 
         self.num_trainable_params, self.num_total_params = (
-            self.get_number_trainable_params2(self.params_ema_2, self.model_ema_2)
+            self.get_number_trainable_params(self.params_ema_2, self.model_ema_2)
         )
         print("Number of trainable parameters in Teacher2: ", self.num_trainable_params)
 
@@ -138,10 +137,10 @@ class Ours(TTAMethod):
 
         # new_e
 
-        self.optimizer_feature_extractor_t2 = self.setup_optimizer_custom(
+        self.optimizer_feature_extractor_t2 = self.setup_optimizer(
             self.feature_extractor_t2.parameters(), 0.01
         )
-        self.optimizer_classifier_t2 = self.setup_optimizer_custom(
+        self.optimizer_classifier_t2 = self.setup_optimizer(
             self.classifier_t2.parameters(), 0.01
         )
 
@@ -164,8 +163,10 @@ class Ours(TTAMethod):
         )
 
         # new_s
-        num_channels = 640  # cifar 10
-        # num_channels = 1024 #cifar 100
+        if self.dataset_name == "cifar10_c":
+            num_channels = 640
+        elif self.dataset_name == "cifar100_c":
+            num_channels = 1024
 
         self.projector = nn.Sequential(
             nn.Linear(num_channels, self.projection_dim),
@@ -178,6 +179,7 @@ class Ours(TTAMethod):
                 "lr": self.optimizer_ema_2.param_groups[0]["lr"],
             }
         )
+
         # new_e
 
         # note: if the self.model is never reset, like for continual adaptation,
@@ -187,6 +189,9 @@ class Ours(TTAMethod):
         # self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
 
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
+
+        self.ema_cof = nn.Parameter(torch.tensor(1.0)).to(self.device)
+        self.ema_2_cof = nn.Parameter(torch.tensor(1.0)).to(self.device)
 
     # new_s
     def contrastive_loss2(
@@ -429,11 +434,9 @@ class Ours(TTAMethod):
 
         # create and return the ensemble prediction
         stu_cof = 0
-        ema_cof = 1
-        ema_2_cof = 1
-        outputs = (
-            stu_cof * outputs_stu + ema_cof * outputs_ema + ema_2_cof * outputs_ema_2
-        )
+        outputs_ema = self.ema_cof * outputs_ema
+        outputs_ema_2 = self.ema_2_cof * outputs_ema_2
+        outputs = stu_cof * outputs_stu + outputs_ema + outputs_ema_2
 
         loss1 = self.symmetric_cross_entropy(
             outputs_ema.to(self.device), outputs_ema_2.to(self.device)
@@ -543,66 +546,33 @@ class Ours(TTAMethod):
         outputs_ema = self.model_ema(imgs_test)
         return outputs_test + outputs_ema
 
-    def configure_model(self):
-        """Configure model"""
-        # model.train()
-        self.model.eval()  # eval mode to avoid stochastic depth in swin. test-time normalization is still applied
-        # disable grad, to (re-)enable only what we update
-        self.model.requires_grad_(False)
-        # enable all trainable
-        for m in self.model.modules():
-            if isinstance(m, nn.BatchNorm2d):
-                m.requires_grad_(True)
-                # force use of batch stats in train and eval modes
-                m.track_running_stats = False
-                m.running_mean = None
-                m.running_var = None
-            elif isinstance(m, nn.BatchNorm1d):
-                m.train()  # always forcing train mode in bn1d will cause problems for single sample tta
-                m.requires_grad_(True)
-            else:
-                m.requires_grad_(True)
+    def configure_model(self, model=None, bn=None):
+        """
+        Configure model
 
-    def configure_model_bn(self, model):
-        """Configure model"""
-        # model.train()
-        model.eval()  # eval mode to avoid stochastic depth in swin. test-time normalization is still applied
-        # disable grad, to (re-)enable only what we update
+        Options:
+        - configure_model() : as same as original
+        - configure_model(model) : configure model custom
+        - configure_model(model, bn=True) : configure model with bn
+        - configure_model(model, bn=False) : configure model without bn
+        """
+        model = model if model is not None else self.model
+        model.eval()
         model.requires_grad_(False)
-        # enable all trainable
+
         for m in model.modules():
             if isinstance(m, nn.BatchNorm2d):
-                m.requires_grad_(True)
-                # force use of batch stats in train and eval modes
-                m.track_running_stats = False
-                m.running_mean = None
-                m.running_var = None
+                if bn is None or bn:
+                    m.requires_grad_(True)
+                    m.track_running_stats = False
+                    m.running_mean = None
+                    m.running_var = None
             elif isinstance(m, nn.BatchNorm1d):
-                m.train()  # always forcing train mode in bn1d will cause problems for single sample tta
-                m.requires_grad_(True)
+                m.train()
+                if bn is None or bn:
+                    m.requires_grad_(True)
             else:
-                m.requires_grad_(False)
-
-    def configure_model_without_bn(self, model):
-        """Configure model"""
-        # model.train()
-        model.eval()  # eval mode to avoid stochastic depth in swin. test-time normalization is still applied
-        # disable grad, to (re-)enable only what we update
-        model.requires_grad_(False)
-        # enable all trainable
-        for m in model.modules():
-            if isinstance(m, nn.BatchNorm2d):
-                # m.requires_grad_(True)
-                # # force use of batch stats in train and eval modes
-                # m.track_running_stats = False
-                # m.running_mean = None
-                # m.running_var = None
-                pass
-            elif isinstance(m, nn.BatchNorm1d):
-                m.train()  # always forcing train mode in bn1d will cause problems for single sample tta
-                # m.requires_grad_(True)
-            else:
-                m.requires_grad_(True)
+                m.requires_grad_(False if bn else True)
 
     def copy_model_and_optimizer(self):
         """Copy the model and optimizer states for resetting after adaptation."""
@@ -618,47 +588,3 @@ class Ours(TTAMethod):
             model.load_state_dict(model_state, strict=True)
         for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
             optimizer.load_state_dict(optimizer_state)
-
-    def collect_params_bn(self, model):
-        """Collect the affine scale + shift parameters from batch norms.
-
-        Walk the model's modules and collect all batch normalization parameters.
-        Return the parameters and their names.
-
-        Note: other choices of parameterization are possible!
-        """
-        params = []
-        names = []
-        for nm, m in model.named_modules():
-            if isinstance(
-                m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm)
-            ):
-                for np, p in m.named_parameters():
-                    if (
-                        np in ["weight", "bias"] and p.requires_grad
-                    ):  # weight is scale, bias is shift
-                        params.append(p)
-                        names.append(f"{nm}.{np}")
-        return params, names
-
-    def collect_params_without_bn(self, model):
-        """Collect all trainable parameters except batch normalization.
-
-        Walk the model's modules and collect all parameters except batch normalization.
-        Return the parameters and their names.
-
-        Note: other choices of parameterization are possible!
-        """
-
-        params = []
-        names = []
-        for nm, m in model.named_modules():
-            # print(nm)
-            if not isinstance(
-                m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm)
-            ):
-                for np, p in m.named_parameters():
-                    if np in ["weight", "bias"] and p.requires_grad:
-                        params.append(p)
-                        names.append(f"{nm}.{np}")
-        return params, names

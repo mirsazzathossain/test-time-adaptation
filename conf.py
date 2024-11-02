@@ -6,16 +6,16 @@
 """Configuration file (powered by YACS)."""
 
 import argparse
-import os
-import sys
 import logging
+import os
 import random
-import torch
-import numpy as np
+import sys
 from datetime import datetime
+
+import numpy as np
+import torch
 from iopath.common.file_io import g_pathmgr
 from yacs.config import CfgNode as CfgNode
-
 
 # Global config object (example usage: from core.config import cfg)
 _C = CfgNode()
@@ -184,6 +184,16 @@ _C.RMT.LAMBDA_CE_SRC = 1.0          # Lambda for source replay. Set to 0 for sou
 _C.RMT.LAMBDA_CE_TRG = 1.0          # Lambda for self-training
 _C.RMT.LAMBDA_CONT = 1.0            # Lambda for contrastive learning
 _C.RMT.NUM_SAMPLES_WARM_UP = 50000  # Number of samples used during the mean teacher warm-up
+
+# --------------------------------- Ours options ----------------------------- #
+_C.Ours = CfgNode()
+
+_C.Ours.LAMBDA_CE_SRC = (
+    1.0  # Lambda for source replay. Set to 0 for source-free variant
+)  # Lambda for source replay. Set to 0 for source-free variant
+_C.Ours.LAMBDA_CE_TRG = 1.0  # Lambda for self-training
+_C.Ours.LAMBDA_CONT = 1.0  # Lambda for contrastive learning
+_C.Ours.NUM_SAMPLES_WARM_UP = 50000  # Number of samples used during the mean teacher warm-up
 
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()
