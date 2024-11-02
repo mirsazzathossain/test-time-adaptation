@@ -142,18 +142,7 @@ def plot_tsne(pqs, prototypes, num_classes, dataset_name):
 
     plt.title(f't-SNE visualization of features and prototypes for each class in {dataset_name} dataset')
 
-    try:
-        wandb.log({"t-SNE": plt})
-        try:
-            fig = plt.figure()
-            wandb.log({"t-SNE": wandb.Image(fig)})
-        except Exception as e:
-            logger.error(f"Error logging t-SNE plot to wandb: {e}")
-    except Exception as e:
-        logger.error(f"Error logging t-SNE plot to wandb: {e}")
-    finally:
-        plt.show()
-        plt.close()
+    wandb.log({"t-SNE": plt})
     
     
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):

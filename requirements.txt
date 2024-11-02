@@ -8,4 +8,5 @@ open-clip-torch==2.29.0
 wandb==0.18.5
 matplotlib==3.9.2
 scikit-learn==1.5.2
+wandb[media]
 git+https://github.com/RobustBench/robustbench.git
