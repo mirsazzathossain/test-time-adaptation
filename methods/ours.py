@@ -342,7 +342,7 @@ class Ours(TTAMethod):
         # Plot TSNE for random 5 classes at interval of 100 steps
         if self.c % 20 == 0 and self.c > 0:
             # print("Plotting TSNE")
-            plot_tsne(priority_queues, prototypes, num_classes)
+            plot_tsne(priority_queues, prototypes, num_classes, self.dataset_name)
 
         return prototypes
 
