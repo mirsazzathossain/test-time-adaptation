@@ -493,7 +493,7 @@ class Ours(TTAMethod):
             self.scaler.update()
             self.optimizer.zero_grad()
         else:
-            with torch.cuda.amp.autocast():
+            with torch.amp.autocast("cuda"):
                 outputs, loss, loss_ema_2, loss_classifier = self.loss_calculation(x)
                 loss.requires_grad_(True)
                 loss.backward(retain_graph=True)
