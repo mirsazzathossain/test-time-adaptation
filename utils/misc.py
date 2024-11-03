@@ -1,11 +1,13 @@
+import io
 import logging
 from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-import wandb
 from sklearn.manifold import TSNE
+
+import wandb
 
 logger = logging.getLogger(__name__)
 
@@ -144,6 +146,10 @@ def plot_tsne(pqs, prototypes, num_classes, dataset_name):
 
     wandb.log({"t-SNE": plt})
     
+    buffer = io.BytesIO()
+    plt.savefig(buffer, format='pdf')
+    buffer.seek(0)
+    wandb.log({"t-SNE": wandb.Media(buffer)})
     
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):
     filter_ids = []
