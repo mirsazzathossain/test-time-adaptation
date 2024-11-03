@@ -147,7 +147,7 @@ def plot_tsne(pqs, prototypes, num_classes, dataset_name):
     wandb.log({"t-SNE": plt})
     plt.savefig(f'output/tsne_{dataset_name}_{wandb.run.id}.png')
     wandb.log({"t-SNE": wandb.Image(f'output/tsne_{dataset_name}_{wandb.run.id}.png')})
-    os.remove(f'output/tsne_{dataset_name}.png')
+    os.remove(f'output/tsne_{dataset_name}_{wandb.run.id}.png')
     
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):
     filter_ids = []
