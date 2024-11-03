@@ -143,7 +143,6 @@ def plot_tsne(pqs, prototypes, num_classes, dataset_name):
 
 
     plt.title(f't-SNE visualization of features and prototypes for each class in {dataset_name} dataset')
-    wandb.log({"t-SNE": plt})
     plt.savefig(f"output/tsne_{dataset_name}_{wandb.run.id}.png")
     plt.show()
 
