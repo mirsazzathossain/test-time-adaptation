@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from sklearn.manifold import TSNE
+from PIL import Image
 
 import wandb
 
@@ -147,9 +148,9 @@ def plot_tsne(pqs, prototypes, num_classes, dataset_name):
     wandb.log({"t-SNE": plt})
     
     buffer = io.BytesIO()
-    plt.savefig(buffer, format='pdf')
+    plt.savefig(buffer, format='png')
     buffer.seek(0)
-    wandb.log({"t-SNE": wandb.Media(buffer)})
+    wandb.log({"t-SNE": wandb.Image(Image.open(buffer))})
     
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):
     filter_ids = []
