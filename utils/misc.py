@@ -1,12 +1,11 @@
-import io
 import logging
 from collections import defaultdict
+import os
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from sklearn.manifold import TSNE
-from PIL import Image
 
 import wandb
 
@@ -146,11 +145,9 @@ def plot_tsne(pqs, prototypes, num_classes, dataset_name):
     plt.title(f't-SNE visualization of features and prototypes for each class in {dataset_name} dataset')
 
     wandb.log({"t-SNE": plt})
-    
-    buffer = io.BytesIO()
-    plt.savefig(buffer, format='png')
-    buffer.seek(0)
-    wandb.log({"t-SNE": wandb.Image(Image.open(buffer))})
+    plt.savefig(f'output/tsne_{dataset_name}_{wandb.run.id}.png')
+    wandb.log({"t-SNE": wandb.Image(f'output/tsne_{dataset_name}_{wandb.run.id}.png')})
+    os.remove(f'output/tsne_{dataset_name}.png')
     
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):
     filter_ids = []
