@@ -143,12 +143,14 @@ def plot_tsne(pqs, prototypes, num_classes, dataset_name):
 
 
     plt.title(f't-SNE visualization of features and prototypes for each class in {dataset_name} dataset')
+    plt.savefig(f"output/tsne_{dataset_name}_{wandb.run.id}.png")
+    plt.show()
 
     wandb.log({"t-SNE": plt})
-    plt.savefig(f'output/tsne_{dataset_name}_{wandb.run.id}.png')
     wandb.log({"t-SNE": wandb.Image(f'output/tsne_{dataset_name}_{wandb.run.id}.png')})
     os.remove(f'output/tsne_{dataset_name}_{wandb.run.id}.png')
-    
+    plt.close()
+
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):
     filter_ids = []
     filter_ids.append(torch.where((entropy_ema < entropy_threshold) & (entropy_ema2 < entropy_threshold)))
