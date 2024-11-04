@@ -1,7 +1,8 @@
-import os
 import hashlib
+import os
 import shutil
 from pathlib import Path
+import sys
 from typing import Set
 
 import requests
@@ -82,3 +83,9 @@ def zenodo_download(record_id: str, filenames_to_download: Set[str],
                               extract_dir=save_dir,
                               format=file['key'].split('.')[-1])
         print("Downloaded and extracted.")
+
+if __name__ == "__main__":
+    record_id = sys.argv[1]
+    filenames_to_download = set(sys.argv[2].split())
+    save_dir = Path(sys.argv[3])
+    zenodo_download(record_id, filenames_to_download, save_dir)
