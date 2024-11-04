@@ -1,6 +1,7 @@
 MODEL:
   ADAPTATION: ours
   ARCH: Hendrycks2020AugMix_ResNeXt
+  USE_CLIP: False
 TEST:
   BATCH_SIZE: 200
 CORRUPTION:
