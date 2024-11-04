@@ -32,6 +32,7 @@ class RMT(TTAMethod):
                                                ckpt_path=cfg.MODEL.CKPT_PATH,
                                                num_samples=cfg.SOURCE.NUM_SAMPLES,
                                                percentage=cfg.SOURCE.PERCENTAGE,
+                                               use_clip=cfg.MODEL.USE_CLIP,
                                                workers=min(cfg.SOURCE.NUM_WORKERS, os.cpu_count()))
         self.src_loader_iter = iter(self.src_loader)
         self.contrast_mode = cfg.CONTRAST.MODE

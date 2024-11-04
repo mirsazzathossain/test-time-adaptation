@@ -17,7 +17,6 @@ from utils.misc import (
     compute_prototypes,
     confidence_condition,
     ema_update_model,
-    ent_loss,
     init_pqs,
     plot_tsne,
     pop_min_from_pqs,
@@ -81,7 +80,7 @@ class Ours(TTAMethod):
 
         # split up the T1 model
         self.backbone_t1, self.classifier_t1 = split_up_model(
-            self.model_t1, arch_name, self.dataset_name
+            self.model_t1, self.arch_name, self.dataset_name
         )
 
         # setup teacher model (T2)
@@ -100,7 +99,7 @@ class Ours(TTAMethod):
 
         # split up the T2 model and setup optimizers
         self.backbone_t2, self.classifier_t2 = split_up_model(
-            self.model_t2, arch_name, self.dataset_name
+            self.model_t2, self.arch_name, self.dataset_name
         )
         self.optimizer_backbone_t2 = self.setup_optimizer(
             self.backbone_t2.parameters(), 0.01
@@ -186,107 +185,72 @@ class Ours(TTAMethod):
         return prototypes
 
     def loss_calculation(self, x):
-        imgs_test = x[0]
-        # print(imgs_test.shape)
+        x = x[0]
+        x_aug = self.tta_transform(x)
 
-        # forward augmented test data
-        aug_hard_imgs_test = self.tta_transform(imgs_test)
-        # aug_weak_imgs_test = self.tta_transform_2(imgs_test)
+        # get the outputs from the models
+        outputs_s = self.model_s(x)
+        outputs_t1 = self.model_t1(x)
+        outputs_t2 = self.model_t2(x)
+        outputs_stu_aug = self.model_s(x_aug)
 
-        outputs = self.model(imgs_test)
-        outputs_stu = self.model_s(imgs_test)
-        outputs_ema = self.model_t1(imgs_test)
-        outputs_ema_2 = self.model_t2(imgs_test)
+        # final output
+        outputs = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
 
-        outputs_stu_aug_hard = self.model_s(aug_hard_imgs_test)
-
-        # loss = self.symmetric_cross_entropy(outputs_stu, outputs_ema.to(self.device)).mean(0) # + self.symmetric_cross_entropy(outputs_stu, outputs_ema_2.to(self.device)).mean(0)
-        # loss1 = self.symmetric_cross_entropy(outputs_ema.to(self.device), outputs_ema_2.to(self.device)).mean(0)
-
+        # student model loss
         self.lambda_ce_trg = 1
-        loss_self_training = (
-            0.5 * self.symmetric_cross_entropy(outputs_stu, outputs_ema)
-            + 0.5 * self.symmetric_cross_entropy(outputs_stu_aug_hard, outputs_ema)
-            + 0.5 * self.symmetric_cross_entropy(outputs_stu, outputs_ema_2)
-        ).mean(0)
-        loss_stu = self.lambda_ce_trg * loss_self_training
+        loss_self_training = 0.5 * self.symmetric_cross_entropy(outputs_s, outputs_t1)
+        loss_self_training += 0.5 * self.symmetric_cross_entropy(
+            outputs_stu_aug, outputs_t1
+        )
+        loss_self_training += 0.5 * self.symmetric_cross_entropy(outputs_s, outputs_t2)
+        loss_stu = self.lambda_ce_trg * loss_self_training.mean(0)
 
-        # all for prototype update
-        entropy_stu = self.ent(outputs_stu)
-        entropy_ema = self.ent(outputs_ema)
-        entropy_ema_2 = self.ent(outputs_ema_2)
+        # calculate the entropy of the outputs
+        entropy_s = self.ent(outputs_s)
+        entropy_t1 = self.ent(outputs_t1)
+        entropy_ema_t2 = self.ent(outputs_t2)
 
+        # apply filtering for feature selection
         filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
-            entropy_ema, entropy_ema_2, entropy_threshold=0.4
+            entropy_t1, entropy_ema_t2, entropy_threshold=0.4
         )
+        selected_filter_ids = filter_ids_2
 
-        # if self.c % 20==0:
-        # print(filter_ids_2)
-        # print(filter_ids_1[0].shape)
-        # print(filter_ids_2[0].shape)
-        # print(filter_ids_3[0].shape)
-        # print(filter_ids_4[0].shape)
-        # 1: T1, T2 both confident, #2: T1 conf, T2 not, #3: T1 not, T2 conf, #4: T1, T2 not
-        # matching_ids, different_ids = get_matching_and_different_ids(outputs_ema, outputs_ema_2)
-
-        self.backbone_t1, self.classifier_t1 = split_up_model(
-            self.model_t1, self.arch_name, self.dataset_name
-        )
-        features_test = self.backbone_t1(imgs_test)
-        # print("feature shape", features_test.shape)
-        choice_filter_ids = filter_ids_2
-        selected_features_candidates = features_test[
-            choice_filter_ids
-        ]  # selected candidates for prototype update
-        selected_entropy_candidates = entropy_ema[choice_filter_ids]
-        labels_ema = torch.argmax(outputs_ema, dim=1)
-        selected_labels_candidates = labels_ema[choice_filter_ids]
+        # select prototypes from T1 model
+        features_t1 = self.backbone_t1(x)
+        selected_features_t1 = features_t1[selected_filter_ids]
+        selected_entropy_t1 = entropy_t1[selected_filter_ids]
+        labels_t1 = torch.argmax(outputs_t1, dim=1)
+        selected_labels_t1 = labels_t1[selected_filter_ids]
 
         prototypes = self.prototype_updates(
             self.priority_queues,
             self.num_classes,
-            selected_features_candidates,
-            selected_entropy_candidates,
-            selected_labels_candidates,
+            selected_features_t1,
+            selected_entropy_t1,
+            selected_labels_t1,
         )
 
-        self.backbone_t2, self.classifier_t2 = split_up_model(
-            self.model_t2, self.arch_name, self.dataset_name
-        )  # could be memory exceed
-        # labels_ema_2 = self.classifier_t2(prototypes)
-        features_ema_2 = self.backbone_t2(imgs_test)
-        features_aug_ema_2 = self.backbone_t2(aug_hard_imgs_test)
+        # calculate the loss for the T2 model
+        features_t2 = self.backbone_t2(x)
+        features_aug_t2 = self.backbone_t2(x_aug)
 
-        # create and return the ensemble prediction
-        stu_cof = 0
-        ema_cof = 1
-        ema_2_cof = 1
-        outputs_ema = ema_cof * outputs_ema
-        outputs_ema_2 = ema_2_cof * outputs_ema_2
-        # outputs = stu_cof * outputs_stu + outputs_ema + outputs_ema_2
-        outputs = torch.nn.functional.softmax(outputs_ema + outputs_ema_2, dim=1)
-
-        loss1 = self.symmetric_cross_entropy(
-            outputs_ema.to(self.device), outputs_ema_2.to(self.device)
+        ce_t2 = self.symmetric_cross_entropy(
+            outputs_t1.to(self.device), outputs_t2.to(self.device)
         ).mean(0)
-
-        loss2 = self.contrastive_loss_proto(
-            features_ema_2, prototypes, labels_ema, margin=0.5
+        cntrs_t2_proto = self.contrastive_loss_proto(
+            features_t2, prototypes, labels_t1, margin=0.5
         )
-
-        mse_t2 = F.mse_loss(features_ema_2, prototypes[labels_ema], reduction="mean")
-        kld_t2 = self.KL_Div_loss(features_ema_2, prototypes, labels_ema)
+        mse_t2 = F.mse_loss(features_t2, prototypes[labels_t1], reduction="mean")
+        kld_t2 = self.KL_Div_loss(features_t2, prototypes, labels_t1)
         cntrs_t2 = self.contrastive_loss(
-            features_ema_2, prototypes, features_aug_ema_2, labels=None, mask=None
+            features_t2, prototypes, features_aug_t2, labels=None, mask=None
         )
 
-        l2_cof = 1
-        l3_cof = 10
-        l4_cof = 100
-        l5_cof = 1
-        loss_t2 = l2_cof * loss2 + l3_cof * mse_t2 + l4_cof * kld_t2 + l5_cof * cntrs_t2
+        loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2
 
-        return outputs, loss_stu, loss_t2, loss1
+        return outputs, loss_stu, loss_t2, ce_t2
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):

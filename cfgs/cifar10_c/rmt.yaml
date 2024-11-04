@@ -1,6 +1,7 @@
 MODEL:
   ADAPTATION: rmt
   ARCH: Standard
+  USE_CLIP: False
 TEST:
   BATCH_SIZE: 200
 CORRUPTION:
