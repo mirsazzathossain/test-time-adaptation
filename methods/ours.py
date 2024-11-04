@@ -126,9 +126,10 @@ class Ours(TTAMethod):
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
-            num_channels = 640
+            # num_channels from last layer of the backbone
+            num_channels = self.backbone_t2[-1].out_features
         elif self.dataset_name == "cifar100_c":
-            num_channels = 1024
+            num_channels = self.backbone_t2[-1].out_features
 
         self.projector = nn.Sequential(
             nn.Linear(num_channels, self.projection_dim),
@@ -141,7 +142,6 @@ class Ours(TTAMethod):
                 "lr": self.optimizer_t2.param_groups[0]["lr"],
             }
         )
-        logger.info("Backbone T2: {}".format(self.backbone_t2))
 
     def prototype_updates(self, pqs, num_classes, features, entropies, labels):
         """
@@ -183,6 +183,17 @@ class Ours(TTAMethod):
         return prototypes
 
     def loss_calculation(self, x):
+        """
+        Calculate the loss for the current batch.
+
+        Args:
+            x (Tensor): Input data for the current batch
+
+        Returns:
+            Tensor: Model predictions
+            Tensor: Student model loss
+            Tensor: T2 model loss
+        """
         x = x[0]
         x_aug = self.tta_transform(x)
 
@@ -249,6 +260,15 @@ class Ours(TTAMethod):
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
+        """
+        Forward pass and adaptation for the current batch.
+
+        Args:
+            x (Tensor): Input data for the current batch
+
+        Returns:
+            Tensor: Model predictions
+        """
         if self.mixed_precision and self.device == "cuda":
             with torch.cuda.amp.autocast():
                 outputs, loss, _ = self.loss_calculation(x)
@@ -338,6 +358,17 @@ class Ours(TTAMethod):
             optimizer.load_state_dict(optimizer_state)
 
     def KL_Div_loss(self, features, prototypes, labels):
+        """
+        Compute the KL divergence loss between the features and prototypes.
+
+        Args:
+            features (Tensor): Extracted features for the current batch
+            prototypes (Tensor): Prototypes for the current batch
+            labels (Tensor): Ground truth labels for the current batch
+
+        Returns:
+            Tensor: KL divergence loss
+        """
         prototypes = prototypes[labels]
         prob1 = F.softmax(features, dim=1)
         prob2 = F.softmax(prototypes, dim=1)

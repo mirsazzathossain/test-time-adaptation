@@ -193,6 +193,16 @@ class TTAMethod(nn.Module):
         return params, names
 
     def setup_optimizer(self, params=None, lr=None):
+        """
+        Setup the optimizer.
+            
+        Args:
+            params (list): list of parameters
+            lr (float): learning rate
+
+        Returns:
+            optimizer: optimizer
+        """
         lr = lr if lr is not None else self.cfg.OPTIM.LR
         params = params if params is not None else self.params
 
@@ -223,7 +233,17 @@ class TTAMethod(nn.Module):
             raise NotImplementedError
 
     def get_number_trainable_params(self, params=None, model=None):
+        """
+        Get the number of trainable parameters.
 
+        Args:
+            params (list): list of parameters
+            model (nn.Module): model
+            
+        Returns:
+            trainable (int): number of trainable parameters
+            total (int): total number of parameters
+        """
         if params is None and model is None:
             trainable = sum(p.numel() for p in self.params) if len(self.params) > 0 else 0
             total = sum(p.numel() for p in self.model.parameters())
