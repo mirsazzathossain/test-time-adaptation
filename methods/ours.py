@@ -124,7 +124,7 @@ class Ours(TTAMethod):
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
 
-        # Why is it in init?
+        # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
             num_channels = 640
         elif self.dataset_name == "cifar100_c":
@@ -234,9 +234,6 @@ class Ours(TTAMethod):
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
 
-        # ce_t2 = self.symmetric_cross_entropy(
-        #     outputs_t1.to(self.device), outputs_t2.to(self.device)
-        # ).mean(0)
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes, labels_t1, margin=0.5
         )
