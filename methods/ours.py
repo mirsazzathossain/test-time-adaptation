@@ -126,10 +126,9 @@ class Ours(TTAMethod):
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
-            # num_channels from last layer of the backbone
-            num_channels = self.backbone_t2[-1].out_features
+            num_channels = 640
         elif self.dataset_name == "cifar100_c":
-            num_channels = self.backbone_t2[-1].out_features
+            num_channels = 1024
 
         self.projector = nn.Sequential(
             nn.Linear(num_channels, self.projection_dim),
