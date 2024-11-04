@@ -144,8 +144,8 @@ class Ours(TTAMethod):
                 "lr": self.optimizer_t2.param_groups[0]["lr"],
             }
         )
+        logger.info("Backbone T2: {}".format(self.backbone_t2))
 
-    # new_s
     def contrastive_loss2(
         self, extracted_feature, prototypes, actual_labels, margin=0.5
     ):
@@ -269,32 +269,42 @@ class Ours(TTAMethod):
         loss = loss.view(anchor_count, batch_size).mean()  # 1
         return loss
 
-    def prototype_updates(
-        self, priority_queues, num_classes, X_test_features, entropies, labels
-    ):
-        # Update priority queues with the current batch
+    def prototype_updates(self, pqs, num_classes, features, entropies, labels):
+        """
+        Update the priority queues and compute the prototypes for the current batch.
 
-        update_pqs(priority_queues, X_test_features, entropies, labels)
+        Args:
+            pqs (list): List of priority queues for each class
+            num_classes (int): Number of classes
+            features (Tensor): Extracted features for the current batch
+            entropies (Tensor): Entropy values for the current batch
+            labels (Tensor): Ground truth labels for the current batch
 
-        # Print the current entropies in the priority queues after each batch
+        Returns:
+            Tensor: Prototypes for the current batch
+        """
+        # make features, entropies, and labels free from gradients
+        features = features.detach()
+        entropies = entropies.detach()
+        labels = labels.detach()
+
+        update_pqs(pqs, features, entropies, labels)
+
+        # pop the minimum element from the priority queues every 5 batches
         if self.c % 5 == 0:
-            popped_elements = pop_min_from_pqs(priority_queues, num_classes)
-        # if self.c % 20 ==0:
-        # print_queue_entropies(priority_queues, num_classes)
+            _ = pop_min_from_pqs(pqs, num_classes)
 
-        # After all batches, compute the prototypes
+        # compute the prototypes for the current batch
         prototypes = compute_prototypes(
-            priority_queues,
+            pqs,
             num_classes,
-            feature_dim=X_test_features.shape[1],
-            device=X_test_features.device,
+            feature_dim=features.shape[1],
+            device=features.device,
         )
-        # print("Prototypes shape:", prototypes.shape)  # Should be [num_classes, feature_dim]
 
-        # Plot TSNE for random 5 classes at interval of 100 steps
+        # plot the t-SNE visualization of the prototypes
         if self.c % 20 == 0 and self.c > 0:
-            # print("Plotting TSNE")
-            plot_tsne(priority_queues, prototypes, num_classes, self.dataset_name)
+            plot_tsne(pqs, prototypes, num_classes, self.dataset_name)
 
         return prototypes
 
