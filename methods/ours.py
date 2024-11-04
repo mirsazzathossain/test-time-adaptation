@@ -316,7 +316,7 @@ class Ours(TTAMethod):
 
         # forward augmented test data
         aug_hard_imgs_test = self.tta_transform(imgs_test)
-        aug_weak_imgs_test = self.tta_transform_2(imgs_test)
+        # aug_weak_imgs_test = self.tta_transform_2(imgs_test)
 
         outputs = self.model(imgs_test)
         outputs_stu = self.model_s(imgs_test)
