@@ -34,9 +34,12 @@ class Ours(TTAMethod):
         super().__init__(cfg, model, num_classes)
 
         self.c = 0
-        batch_size_src = (
-            cfg.TEST.BATCH_SIZE if cfg.TEST.BATCH_SIZE > 1 else cfg.TEST.WINDOW_LENGTH
-        )
+
+        if cfg.TEST.WINDOW_LENGTH > 1:
+            batch_size_src = cfg.TEST.BATCH_SIZE
+        else:
+            batch_size_src = cfg.TEST.WINDOW_LENGTH
+
         _, self.src_loader = get_source_loader(
             dataset_name=cfg.CORRUPTION.DATASET,
             adaptation=cfg.MODEL.ADAPTATION,
@@ -64,105 +67,67 @@ class Ours(TTAMethod):
         arch_name = cfg.MODEL.ARCH
         self.arch_name = arch_name
 
+        # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
 
         # setup loss functions
         self.symmetric_cross_entropy = SymmetricCrossEntropy()
+        self.ent = Entropy()
 
-        # Setup EMA model
-        self.model_ema = self.copy_model(self.model)  # T1
-        for param in self.model_ema.parameters():
+        # setup teacher model (T1)
+        self.model_t1 = self.copy_model(self.model)
+        for param in self.model_t1.parameters():
             param.detach_()
 
-        self.model_stu = self.copy_model(self.model)  # stu
-        for param in self.model_stu.parameters():
+        # split up the T1 model
+        self.backbone_t1, self.classifier_t1 = split_up_model(
+            self.model_t1, arch_name, self.dataset_name
+        )
+
+        # setup teacher model (T2)
+        self.model_t2 = self.copy_model(self.model)
+        for param in self.model_t2.parameters():
             param.detach_()
 
-        # new_s
-        # custom for rmt ours
-        self.model_ema_2 = self.copy_model(self.model)  # T2
-        for param in self.model_ema_2.parameters():
-            param.detach_()
+        # configure teacher model (T2)
+        self.configure_model(self.model_t2, bn=True)
+        self.params_t2, _ = self.collect_params(self.model_t2)
+        lr = 0.01
+        if len(self.params_t2) > 0:
+            self.optimizer_t2 = self.setup_optimizer(self.params_t2, lr)
 
-        # new_e
+        _ = self.get_number_trainable_params(self.params_t2, self.model_t2)
 
-        # self.configure_model()
-        # self.params_bn, param_names_bn = self.collect_params(self.model, bn=True)
-        # self.optimizer_bn = self.setup_optimizer(self.params_bn) if len(self.params_bn) > 0 else None
-
-        self.configure_model(self.model_stu)
-        self.params, param_names = self.collect_params(self.model_stu)
-        lr = self.cfg.OPTIM.LR
-        self.optimizer_bn = (
-            self.setup_optimizer(self.params, lr) if len(self.params) > 0 else None
+        # split up the T2 model and setup optimizers
+        self.backbone_t2, self.classifier_t2 = split_up_model(
+            self.model_t2, arch_name, self.dataset_name
         )
-
-        self.num_trainable_params1, self.num_total_params = (
-            self.get_number_trainable_params(self.params, self.model)
-        )
-        logger.info(
-            "Number of trainable parameters of bn in student: %s",
-            self.num_trainable_params1,
-        )
-        logger.info(
-            "Number of total parameters in the model: %s", self.num_total_params
-        )
-
-        # self.configure_model(self.model_ema, bn=True)
-        # self.params_ema_bn, param_names_ema_bn = self.collect_params(self.model_ema)
-        # self.optimizer_without_bn = self.setup_optimizer(self.params_ema_bn) if len(self.params_ema_bn) > 0 else None
-
-        # self.num_trainable_params2, self.num_total_params = self.get_number_trainable_params(self.params_ema_bn, self.model)
-        # print("Number of trainable parameters without bn in student: ", self.num_trainable_params2)
-
-        # new_s
-        self.configure_model(self.model_ema_2, bn=True)
-        self.params_ema_2, param_names_ema_2 = self.collect_params(self.model_ema_2)
-        self.optimizer_ema_2 = (
-            self.setup_optimizer(self.params_ema_2, 0.01)
-            if len(self.params_ema_2) > 0
-            else None
-        )
-
-        self.num_trainable_params, self.num_total_params = (
-            self.get_number_trainable_params(self.params_ema_2, self.model_ema_2)
-        )
-        print("Number of trainable parameters in Teacher2: ", self.num_trainable_params)
-
-        print(param_names_ema_2)
-        self.feature_extractor_t2, self.classifier_t2 = split_up_model(
-            self.model_ema_2, arch_name, self.dataset_name
-        )
-        print(self.feature_extractor_t2)
-
-        # new_e
-
-        self.optimizer_feature_extractor_t2 = self.setup_optimizer(
-            self.feature_extractor_t2.parameters(), 0.01
+        self.optimizer_backbone_t2 = self.setup_optimizer(
+            self.backbone_t2.parameters(), 0.01
         )
         self.optimizer_classifier_t2 = self.setup_optimizer(
             self.classifier_t2.parameters(), 0.01
         )
 
-        self.source_available = False
-        self.ent = Entropy()
-        self.deyo_margin = cfg.DEYO.MARGIN * math.log(num_classes)
-        self.unreliable_consider = True
-        self.reliable_entropy_loss_consider = True
-        self.mutual_information_loss_consider = False
-        self.sme_loss_consider_p1p2 = False
-        self.bn_regularization_loss_consider_t1t2 = True
-        self.tta_transform_2 = get_tta_transforms(self.img_size, cotta_augs=False)
+        # setup student model
+        self.model_s = self.copy_model(self.model)
+        for param in self.model_s.parameters():
+            param.detach_()
 
-        # split up the model
-        self.feature_extractor, self.classifier = split_up_model(
-            self.model, arch_name, self.dataset_name
-        )
-        self.feature_extractor_t1, self.classifier_t1 = split_up_model(
-            self.model_ema, arch_name, self.dataset_name
-        )
+        # configure student model
+        self.configure_model(self.model_s)
+        self.params, _ = self.collect_params(self.model_s)
+        lr = self.cfg.OPTIM.LR
 
-        # new_s
+        if len(self.params) > 0:
+            self.optimizer_bn = self.setup_optimizer(self.params, lr)
+
+        _ = self.get_number_trainable_params(self.params, self.model)
+
+        # setup priority queues for prototype updates
+        self.priority_queues = init_pqs(self.num_classes, max_size=10)
+
+        # Why is it in init?
         if self.dataset_name == "cifar10_c":
             num_channels = 640
         elif self.dataset_name == "cifar100_c":
@@ -173,25 +138,12 @@ class Ours(TTAMethod):
             nn.ReLU(),
             nn.Linear(self.projection_dim, self.projection_dim),
         ).to(self.device)
-        self.optimizer_ema_2.add_param_group(
+        self.optimizer_t2.add_param_group(
             {
                 "params": self.projector.parameters(),
-                "lr": self.optimizer_ema_2.param_groups[0]["lr"],
+                "lr": self.optimizer_t2.param_groups[0]["lr"],
             }
         )
-
-        # new_e
-
-        # note: if the self.model is never reset, like for continual adaptation,
-        # then skipping the state copy would save memory
-        self.models = []  # [self.model, self.model_stu, self.model_ema, self.model_ema_2]
-        self.optimizers = []  # [self.optimizer, self.optimizer_bn, self.optimizer_ema_2]
-        # self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
-
-        self.priority_queues = init_pqs(self.num_classes, max_size=10)
-
-        self.ema_cof = nn.Parameter(torch.tensor(1.0)).to(self.device)
-        self.ema_2_cof = nn.Parameter(torch.tensor(1.0)).to(self.device)
 
     # new_s
     def contrastive_loss2(
@@ -367,11 +319,11 @@ class Ours(TTAMethod):
         aug_weak_imgs_test = self.tta_transform_2(imgs_test)
 
         outputs = self.model(imgs_test)
-        outputs_stu = self.model_stu(imgs_test)
-        outputs_ema = self.model_ema(imgs_test)
-        outputs_ema_2 = self.model_ema_2(imgs_test)
+        outputs_stu = self.model_s(imgs_test)
+        outputs_ema = self.model_t1(imgs_test)
+        outputs_ema_2 = self.model_t2(imgs_test)
 
-        outputs_stu_aug_hard = self.model_stu(aug_hard_imgs_test)
+        outputs_stu_aug_hard = self.model_s(aug_hard_imgs_test)
 
         # loss = self.symmetric_cross_entropy(outputs_stu, outputs_ema.to(self.device)).mean(0) # + self.symmetric_cross_entropy(outputs_stu, outputs_ema_2.to(self.device)).mean(0)
         # loss1 = self.symmetric_cross_entropy(outputs_ema.to(self.device), outputs_ema_2.to(self.device)).mean(0)
@@ -402,10 +354,10 @@ class Ours(TTAMethod):
         # 1: T1, T2 both confident, #2: T1 conf, T2 not, #3: T1 not, T2 conf, #4: T1, T2 not
         # matching_ids, different_ids = get_matching_and_different_ids(outputs_ema, outputs_ema_2)
 
-        self.feature_extractor_t1, self.classifier_t1 = split_up_model(
-            self.model_ema, self.arch_name, self.dataset_name
+        self.backbone_t1, self.classifier_t1 = split_up_model(
+            self.model_t1, self.arch_name, self.dataset_name
         )
-        features_test = self.feature_extractor_t1(imgs_test)
+        features_test = self.backbone_t1(imgs_test)
         # print("feature shape", features_test.shape)
         choice_filter_ids = filter_ids_2
         selected_features_candidates = features_test[
@@ -415,8 +367,6 @@ class Ours(TTAMethod):
         labels_ema = torch.argmax(outputs_ema, dim=1)
         selected_labels_candidates = labels_ema[choice_filter_ids]
 
-        # print(labels_ema)
-
         prototypes = self.prototype_updates(
             self.priority_queues,
             self.num_classes,
@@ -425,18 +375,21 @@ class Ours(TTAMethod):
             selected_labels_candidates,
         )
 
-        self.feature_extractor_t2, self.classifier_t2 = split_up_model(
-            self.model_ema_2, self.arch_name, self.dataset_name
+        self.backbone_t2, self.classifier_t2 = split_up_model(
+            self.model_t2, self.arch_name, self.dataset_name
         )  # could be memory exceed
         # labels_ema_2 = self.classifier_t2(prototypes)
-        features_ema_2 = self.feature_extractor_t2(imgs_test)
-        features_aug_ema_2 = self.feature_extractor_t2(aug_hard_imgs_test)
+        features_ema_2 = self.backbone_t2(imgs_test)
+        features_aug_ema_2 = self.backbone_t2(aug_hard_imgs_test)
 
         # create and return the ensemble prediction
         stu_cof = 0
-        outputs_ema = self.ema_cof * outputs_ema
-        outputs_ema_2 = self.ema_2_cof * outputs_ema_2
-        outputs = stu_cof * outputs_stu + outputs_ema + outputs_ema_2
+        ema_cof = 1
+        ema_2_cof = 1
+        outputs_ema = ema_cof * outputs_ema
+        outputs_ema_2 = ema_2_cof * outputs_ema_2
+        # outputs = stu_cof * outputs_stu + outputs_ema + outputs_ema_2
+        outputs = torch.nn.functional.softmax(outputs_ema + outputs_ema_2, dim=1)
 
         loss1 = self.symmetric_cross_entropy(
             outputs_ema.to(self.device), outputs_ema_2.to(self.device)
@@ -504,32 +457,16 @@ class Ours(TTAMethod):
                 loss_ema_2.requires_grad_(True)
                 loss_ema_2.backward()
 
-                # self.optimizer_ema_2.step()
-                # self.optimizer_ema_2.zero_grad()
+                self.optimizer_backbone_t2.step()
+                self.optimizer_backbone_t2.zero_grad()
 
-                self.optimizer_feature_extractor_t2.step()
-                self.optimizer_feature_extractor_t2.zero_grad()
-
-                # loss_classifier.requires_grad_(True)
-                # loss_classifier.backward()
-                # self.optimizer_classifier_t2.step()
-                # self.optimizer_classifier_t2.zero_grad()
-
-        self.model_ema = ema_update_model(
-            model_to_update=self.model_ema,
-            model_to_merge=self.model_stu,
+        self.model_t1 = ema_update_model(
+            model_to_update=self.model_t1,
+            model_to_merge=self.model_s,
             momentum=self.m_teacher_momentum,
             device=self.device,
             update_all=True,
         )
-
-        # self.model_ema_2 = ema_update_model(
-        #     model_to_update=self.model_ema_2,
-        #     model_to_merge=self.model_ema,
-        #     momentum=self.m_teacher_momentum,
-        #     device=self.device,
-        #     update_all=True
-        # )
 
         self.c = self.c + 1
         return outputs
@@ -543,7 +480,7 @@ class Ours(TTAMethod):
         """
         imgs_test = x[0]
         outputs_test = self.model(imgs_test)
-        outputs_ema = self.model_ema(imgs_test)
+        outputs_ema = self.model_t1(imgs_test)
         return outputs_test + outputs_ema
 
     def configure_model(self, model=None, bn=None):
