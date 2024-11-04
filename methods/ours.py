@@ -146,129 +146,6 @@ class Ours(TTAMethod):
         )
         logger.info("Backbone T2: {}".format(self.backbone_t2))
 
-    def contrastive_loss2(
-        self, extracted_feature, prototypes, actual_labels, margin=0.5
-    ):
-        # Normalize the extracted features and prototypes
-        extracted_feature = F.normalize(extracted_feature, p=2, dim=1)
-        prototypes = F.normalize(prototypes, p=2, dim=1)
-
-        # Compute cosine similarity between each extracted feature and all prototypes
-        cosine_sim = torch.matmul(extracted_feature, prototypes.T)  # Shape: [200, 10]
-
-        # Gather the positive similarities (correct prototype) for each sample
-        pos_sim = cosine_sim[
-            torch.arange(cosine_sim.size(0)), actual_labels
-        ]  # Shape: [200]
-
-        # Create a mask to ignore the correct class in negative similarities
-        mask = torch.ones_like(cosine_sim, dtype=bool)
-        mask[torch.arange(cosine_sim.size(0)), actual_labels] = False
-
-        # Calculate the contrastive loss
-        loss = 0.0
-        for i in range(cosine_sim.size(0)):  # Iterate over batch samples
-            # Get negative similarities for the current sample
-            neg_sim = cosine_sim[i][mask[i]]  # Shape: [9]
-
-            # Compute the margin-based contrastive loss
-            losses = F.relu(margin - pos_sim[i] + neg_sim)
-            loss += losses.mean()
-
-        # Average the loss over the batch
-        loss /= cosine_sim.size(0)
-
-        return loss
-
-    def contrastive_loss(
-        self, features_test, prototypes_src, features_aug_test, labels=None, mask=None
-    ):
-        prototypes_src = prototypes_src.unsqueeze(1)  # 10, 1, 640
-        with torch.no_grad():
-            # dist[:, i] contains the distance from every source sample to one test sample
-            x1 = prototypes_src.repeat(1, features_test.shape[0], 1)  # 10, 200, 640
-            x2 = features_test.view(
-                1, features_test.shape[0], features_test.shape[1]
-            ).repeat(prototypes_src.shape[0], 1, 1)  # 10, 200, 640
-            dist = F.cosine_similarity(x1, x2, dim=-1)  # 10, 200
-
-            # for every test feature, get the nearest source prototype and derive the label
-            _, indices = dist.topk(1, largest=True, dim=0)  # 1, 200
-            indices = indices.squeeze(0)  # 200
-
-        features = torch.cat(
-            [
-                prototypes_src[indices],
-                features_test.view(features_test.shape[0], 1, features_test.shape[1]),
-                features_aug_test.view(
-                    features_test.shape[0], 1, features_test.shape[1]
-                ),
-            ],
-            dim=1,
-        )
-
-        batch_size = features.shape[0]
-        if labels is not None and mask is not None:
-            raise ValueError("Cannot define both `labels` and `mask`")
-        elif labels is None and mask is None:
-            mask = torch.eye(batch_size, dtype=torch.float32).to(
-                self.device
-            )  # 200, 200
-        elif labels is not None:
-            labels = labels.contiguous().view(-1, 1)
-            if labels.shape[0] != batch_size:
-                raise ValueError("Num of labels does not match num of features")
-            mask = torch.eq(labels, labels.T).float().to(self.device)
-        else:
-            mask = mask.float().to(self.device)
-
-        contrast_count = features.shape[1]  # 200
-        contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0)  # 200*3, 640
-        contrast_feature = self.projector(contrast_feature)  # 200*3, 128
-        contrast_feature = F.normalize(contrast_feature, p=2, dim=1)  # 200*3, 128
-        if self.contrast_mode == "one":
-            anchor_feature = features[:, 0]
-            anchor_count = 1
-        elif self.contrast_mode == "all":
-            anchor_feature = contrast_feature  # 200*3, 128
-            anchor_count = contrast_count  # 200
-        else:
-            raise ValueError("Unknown mode: {}".format(self.contrast_mode))
-
-        # compute logits
-        anchor_dot_contrast = torch.div(
-            torch.matmul(anchor_feature, contrast_feature.T), self.temperature
-        )  # 200*3, 200*3
-        # for numerical stability
-        logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)  # 200*3, 1
-        logits = anchor_dot_contrast - logits_max.detach()  # 200*3, 200*3
-
-        # tile mask
-        mask = mask.repeat(anchor_count, contrast_count)  # 200*3, 200*3
-
-        # mask-out self-contrast cases
-        logits_mask = torch.scatter(
-            torch.ones_like(mask),
-            1,
-            torch.arange(batch_size * anchor_count).view(-1, 1).to(self.device),
-            0,
-        )  # 200*3, 200*3
-
-        mask = mask * logits_mask  # 200*3, 200*3
-
-        # compute log_prob
-        exp_logits = torch.exp(logits) * logits_mask  # 200*3, 200*3
-
-        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))  # 200*3, 200*3
-
-        # compute mean of log-likelihood over positive
-        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)  # 200*3
-
-        # loss
-        loss = -(self.temperature / self.base_temperature) * mean_log_prob_pos  # 200*3
-        loss = loss.view(anchor_count, batch_size).mean()  # 1
-        return loss
-
     def prototype_updates(self, pqs, num_classes, features, entropies, labels):
         """
         Update the priority queues and compute the prototypes for the current batch.
@@ -307,18 +184,6 @@ class Ours(TTAMethod):
             plot_tsne(pqs, prototypes, num_classes, self.dataset_name)
 
         return prototypes
-
-    def mse_feature_prototype(self, features, prototypes, labels):
-        prototypes = prototypes[labels]  # [200,640]
-        return F.mse_loss(features, prototypes, reduction="mean")
-
-    def KL_Div_loss(self, features, prototypes, labels):
-        prototypes = prototypes[labels]  # [200,640]
-        # Apply softmax to get probability distributions
-        prob1 = F.softmax(features, dim=1)
-        prob2 = F.softmax(prototypes, dim=1)
-
-        return F.kl_div(prob1.log(), prob2, reduction="batchmean")
 
     def loss_calculation(self, x):
         imgs_test = x[0]
@@ -405,46 +270,23 @@ class Ours(TTAMethod):
             outputs_ema.to(self.device), outputs_ema_2.to(self.device)
         ).mean(0)
 
-        loss2 = self.contrastive_loss2(
+        loss2 = self.contrastive_loss_proto(
             features_ema_2, prototypes, labels_ema, margin=0.5
         )
 
-        loss3 = self.mse_feature_prototype(features_ema_2, prototypes, labels_ema)
-
-        loss4 = self.KL_Div_loss(features_ema_2, prototypes, labels_ema)
-
-        loss5 = self.contrastive_loss(
+        mse_t2 = F.mse_loss(features_ema_2, prototypes[labels_ema], reduction="mean")
+        kld_t2 = self.KL_Div_loss(features_ema_2, prototypes, labels_ema)
+        cntrs_t2 = self.contrastive_loss(
             features_ema_2, prototypes, features_aug_ema_2, labels=None, mask=None
         )
 
-        loss6 = ent_loss(
-            outputs_ema_2
-        )  # split to merge (information maximization loss) equation 14
-
-        # if self.c % 20==0:
-        # print("loss1 ", loss1.item())
-        # print("loss2 " , loss2.item())
-        # print("loss3 ", loss3.item())
-        # print("loss4 ", loss4.item())
-        # print("loss5 ", loss5.item())
-        # print("loss6 ", loss6.item())
-
-        l1_cof = 0
         l2_cof = 1
         l3_cof = 10
         l4_cof = 100
         l5_cof = 1
-        l6_cof = 0
-        loss_ema_2 = (
-            l1_cof * loss1
-            + l2_cof * loss2
-            + l3_cof * loss3
-            + l4_cof * loss4
-            + l5_cof * loss5
-            + l6_cof * loss6
-        )
+        loss_t2 = l2_cof * loss2 + l3_cof * mse_t2 + l4_cof * kld_t2 + l5_cof * cntrs_t2
 
-        return outputs, loss_stu, loss_ema_2, loss1
+        return outputs, loss_stu, loss_t2, loss1
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
@@ -457,15 +299,15 @@ class Ours(TTAMethod):
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss, loss_ema_2, loss_classifier = self.loss_calculation(x)
+                outputs, loss, loss_t2, _ = self.loss_calculation(x)
                 loss.requires_grad_(True)
                 loss.backward(retain_graph=True)
 
                 self.optimizer_bn.step()
                 self.optimizer_bn.zero_grad()
 
-                loss_ema_2.requires_grad_(True)
-                loss_ema_2.backward()
+                loss_t2.requires_grad_(True)
+                loss_t2.backward()
 
                 self.optimizer_backbone_t2.step()
                 self.optimizer_backbone_t2.zero_grad()
@@ -535,3 +377,147 @@ class Ours(TTAMethod):
             model.load_state_dict(model_state, strict=True)
         for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
             optimizer.load_state_dict(optimizer_state)
+
+    def KL_Div_loss(self, features, prototypes, labels):
+        prototypes = prototypes[labels]
+        prob1 = F.softmax(features, dim=1)
+        prob2 = F.softmax(prototypes, dim=1)
+
+        return F.kl_div(prob1.log(), prob2, reduction="batchmean")
+
+    def contrastive_loss_proto(self, feature, prototypes, labels, margin=0.5):
+        """
+        Compute the contrastive loss between the features and prototypes.
+
+        Args:
+            feature (Tensor): Extracted features for the current batch
+            prototypes (Tensor): Prototypes for the current batch
+            labels (Tensor): Ground truth labels for the current batch
+            margin (float): Margin value for the contrastive loss
+
+        Returns:
+            Tensor: Contrastive loss
+        """
+        # normalize the features and prototypes
+        feature = F.normalize(feature, p=2, dim=1)
+        prototypes = F.normalize(prototypes, p=2, dim=1)
+
+        # compute the cosine similarity between features and prototypes
+        cosine_sim = torch.matmul(feature, prototypes.T)
+
+        # get the positive similarities (correct class)
+        pos_sim = cosine_sim[torch.arange(cosine_sim.size(0)), labels]
+
+        # mask to ignore the correct class in negative similarities
+        mask = torch.ones_like(cosine_sim, dtype=bool)
+        mask[torch.arange(cosine_sim.size(0)), labels] = False
+
+        # compute the loss
+        loss = 0.0
+        for i in range(cosine_sim.size(0)):
+            neg_sim = cosine_sim[i][mask[i]]
+            losses = F.relu(margin - pos_sim[i] + neg_sim)
+            loss += losses.mean()
+
+        loss /= cosine_sim.size(0)
+
+        return loss
+
+    def contrastive_loss(
+        self, features, prototypes, features_aug, labels=None, mask=None
+    ):
+        """
+        Compute the contrastive loss.
+
+        Args:
+            features (Tensor): Extracted features for the current batch
+            prototypes (Tensor): Prototypes for the current batch
+            features_aug (Tensor): Augmented features for the current batch
+            labels (Tensor): Ground truth labels for the current batch
+            mask (Tensor): Mask for the contrastive loss
+
+        Returns:
+            Tensor: Contrastive loss
+        """
+        prototypes = prototypes.unsqueeze(1)
+        with torch.no_grad():
+            x1 = prototypes.repeat(1, features.shape[0], 1)
+            x2 = features.view(1, features.shape[0], features.shape[1]).repeat(
+                prototypes.shape[0], 1, 1
+            )
+            dist = F.cosine_similarity(x1, x2, dim=-1)
+
+            # get the indices of the nearest prototypes
+            _, indices = dist.topk(1, largest=True, dim=0)
+            indices = indices.squeeze(0)
+
+        features = torch.cat(
+            [
+                prototypes[indices],
+                features.view(features.shape[0], 1, features.shape[1]),
+                features_aug.view(features.shape[0], 1, features.shape[1]),
+            ],
+            dim=1,
+        )
+
+        batch_size = features.shape[0]
+        if labels is not None and mask is not None:
+            raise ValueError("Cannot define both `labels` and `mask`")
+        elif labels is None and mask is None:
+            mask = torch.eye(batch_size, dtype=torch.float32).to(self.device)
+        elif labels is not None:
+            labels = labels.contiguous().view(-1, 1)
+            if labels.shape[0] != batch_size:
+                raise ValueError("Num of labels does not match num of features")
+            mask = torch.eq(labels, labels.T).float().to(self.device)
+        else:
+            mask = mask.float().to(self.device)
+
+        contrast_count = features.shape[1]
+        contrast_feature = torch.cat(torch.unbind(features, dim=1), dim=0)
+        contrast_feature = self.projector(contrast_feature)
+        contrast_feature = F.normalize(contrast_feature, p=2, dim=1)
+        if self.contrast_mode == "one":
+            anchor_feature = features[:, 0]
+            anchor_count = 1
+        elif self.contrast_mode == "all":
+            anchor_feature = contrast_feature
+            anchor_count = contrast_count
+        else:
+            raise ValueError("Unknown mode: {}".format(self.contrast_mode))
+
+        # compute logits
+        anchor_dot_contrast = torch.div(
+            torch.matmul(anchor_feature, contrast_feature.T), self.temperature
+        )
+
+        # for numerical stability
+        logits_max, _ = torch.max(anchor_dot_contrast, dim=1, keepdim=True)
+        logits = anchor_dot_contrast - logits_max.detach()
+
+        # tile mask
+        mask = mask.repeat(anchor_count, contrast_count)
+
+        # mask-out self-contrast cases
+        logits_mask = torch.scatter(
+            torch.ones_like(mask),
+            1,
+            torch.arange(batch_size * anchor_count).view(-1, 1).to(self.device),
+            0,
+        )
+
+        mask = mask * logits_mask
+
+        # compute log_prob
+        exp_logits = torch.exp(logits) * logits_mask
+
+        log_prob = logits - torch.log(exp_logits.sum(1, keepdim=True))
+
+        # compute mean of log-likelihood over positive
+        mean_log_prob_pos = (mask * log_prob).sum(1) / mask.sum(1)
+
+        # loss
+        loss = -(self.temperature / self.base_temperature) * mean_log_prob_pos
+        loss = loss.view(anchor_count, batch_size).mean()
+
+        return loss
