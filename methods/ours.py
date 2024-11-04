@@ -1,10 +1,8 @@
 import logging
-import math
 import os
 from copy import deepcopy
 
 import torch
-import torch.jit
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -236,9 +234,9 @@ class Ours(TTAMethod):
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
 
-        ce_t2 = self.symmetric_cross_entropy(
-            outputs_t1.to(self.device), outputs_t2.to(self.device)
-        ).mean(0)
+        # ce_t2 = self.symmetric_cross_entropy(
+        #     outputs_t1.to(self.device), outputs_t2.to(self.device)
+        # ).mean(0)
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes, labels_t1, margin=0.5
         )
@@ -250,20 +248,20 @@ class Ours(TTAMethod):
 
         loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2
 
-        return outputs, loss_stu, loss_t2, ce_t2
+        return outputs, loss_stu, loss_t2
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
         if self.mixed_precision and self.device == "cuda":
             with torch.cuda.amp.autocast():
-                outputs, loss, _, _ = self.loss_calculation(x)
+                outputs, loss, _ = self.loss_calculation(x)
             self.scaler.scale(loss).backward()
             self.scaler.step(self.optimizer)
             self.scaler.update()
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss, loss_t2, _ = self.loss_calculation(x)
+                outputs, loss, loss_t2 = self.loss_calculation(x)
                 loss.requires_grad_(True)
                 loss.backward(retain_graph=True)
 
