@@ -45,7 +45,7 @@ def file_md5(filename: Path) -> str:
     """Computes the MD5 hash of a given file"""
     hash_md5 = hashlib.md5()
     with open(filename, "rb") as f:
-        for chunk in iter(lambda: f.read(CHUNK_SIZE), b""):
+        for chunk in iter(lambda: f.read(32768), b""):
             hash_md5.update(chunk)
 
     return hash_md5.hexdigest()
