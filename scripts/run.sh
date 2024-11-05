@@ -1,3 +1,3 @@
-docker run --rm -it --gpus all --ipc=host --env-file .env -v $(pwd):/app mirsazzathossain/tta:latest python test_time.py --cfg cfgs/imagenet_c/ours.yaml SETTING continual CORRUPTION.NUM_EX 50000
-docker run --rm -it --gpus all --ipc=host --env-file .env -v $(pwd):/app mirsazzathossain/tta:latest python test_time.py --cfg cfgs/imagenet_c/ours.yaml SETTING mixed_domains CORRUPTION.NUM_EX 50000
-docker run --rm -it --gpus all --ipc=host --env-file .env -v $(pwd):/app mirsazzathossain/tta:latest python test_time.py --cfg cfgs/imagenet_c/ours.yaml SETTING gradual CORRUPTION.NUM_EX 50000
+python test_time.py --cfg cfgs/imagenet_c/ours.yaml SETTING continual CORRUPTION.NUM_EX 50000
+python test_time.py --cfg cfgs/imagenet_c/ours.yaml SETTING mixed_domains CORRUPTION.NUM_EX 50000
+python test_time.py --cfg cfgs/imagenet_c/ours.yaml SETTING gradual CORRUPTION.NUM_EX 50000
