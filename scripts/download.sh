@@ -12,3 +12,4 @@ python robustbench/zenodo_download.py "2235448" "digital.tar" "data/ImageNet-C"
 python robustbench/zenodo_download.py "2235448" "extra.tar" "data/ImageNet-C"
 python robustbench/zenodo_download.py "2235448" "noise.tar" "data/ImageNet-C"
 python robustbench/zenodo_download.py "2235448" "weather.tar" "data/ImageNet-C"
+rm data/ImageNet-C/content

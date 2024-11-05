@@ -157,8 +157,8 @@ class Ours(TTAMethod):
         )
 
         # plot the t-SNE visualization of the prototypes
-        if self.c % 20 == 0 and self.c > 0:
-            plot_tsne(pqs, prototypes, num_classes, self.dataset_name)
+        # if self.c % 20 == 0 and self.c > 0:
+        #     plot_tsne(pqs, prototypes, num_classes, self.dataset_name)
 
         return prototypes
 
