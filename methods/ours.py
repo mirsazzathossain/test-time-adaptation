@@ -31,25 +31,6 @@ class Ours(TTAMethod):
         super().__init__(cfg, model, num_classes)
 
         self.c = 0
-
-        if cfg.TEST.WINDOW_LENGTH > 1:
-            batch_size_src = cfg.TEST.BATCH_SIZE
-        else:
-            batch_size_src = cfg.TEST.WINDOW_LENGTH
-
-        _, self.src_loader = get_source_loader(
-            dataset_name=cfg.CORRUPTION.DATASET,
-            adaptation=cfg.MODEL.ADAPTATION,
-            preprocess=model.model_preprocess,
-            data_root_dir=cfg.DATA_DIR,
-            batch_size=batch_size_src,
-            ckpt_path=cfg.MODEL.CKPT_PATH,
-            num_samples=cfg.SOURCE.NUM_SAMPLES,
-            percentage=cfg.SOURCE.PERCENTAGE,
-            workers=min(cfg.SOURCE.NUM_WORKERS, os.cpu_count()),
-            use_clip=cfg.MODEL.USE_CLIP,
-        )
-        self.src_loader_iter = iter(self.src_loader)
         self.contrast_mode = cfg.CONTRAST.MODE
         self.temperature = cfg.CONTRAST.TEMPERATURE
         self.base_temperature = self.temperature
@@ -58,8 +39,6 @@ class Ours(TTAMethod):
         self.lambda_ce_trg = cfg.Ours.LAMBDA_CE_TRG
         self.lambda_cont = cfg.Ours.LAMBDA_CONT
         self.m_teacher_momentum = cfg.M_TEACHER.MOMENTUM
-        # arguments neeeded for warm up
-        self.warmup_steps = cfg.Ours.NUM_SAMPLES_WARM_UP // batch_size_src
         self.final_lr = cfg.OPTIM.LR
         arch_name = cfg.MODEL.ARCH
         self.arch_name = arch_name
@@ -129,6 +108,8 @@ class Ours(TTAMethod):
             num_channels = 640
         elif self.dataset_name == "cifar100_c":
             num_channels = 1024
+        else:
+            num_channels = 2048
 
         self.projector = nn.Sequential(
             nn.Linear(num_channels, self.projection_dim),
