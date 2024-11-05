@@ -145,5 +145,15 @@ def evaluate(description):
     wandb.finish()
 
 if __name__ == '__main__':
+    
+    # ==========================================================================
+    wandb_api_key=os.environ.get('WANDB_API_KEY')
+    if wandb_api_key:
+        wandb.login(key=wandb_api_key)
+    else:
+        print("WANDB_API_KEY not found in environment variables.")
+
+    # ========================================================================== 
+    
     wandb.init(project="test-time-adaptation", dir="output")
     evaluate('"Evaluation.')
