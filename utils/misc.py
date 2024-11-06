@@ -90,7 +90,7 @@ def compute_prototypes(pqs, num_classes, feature_dim, device='cpu'):
             # Compute the prototype as the weighted sum of the features
             prototype = weighted_features.sum(dim=0) / weights.sum()
         else:
-            prototype = torch.zeros(feature_dim).to(device).requires_grad_(True)
+            prototype = torch.zeros(feature_dim).to(device)
 
         prototypes.append(prototype)
 

@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from augmentations.transforms_cotta import get_tta_transforms
 from methods.base import TTAMethod
 from models.model import split_up_model
-from utils.losses import Entropy, SymmetricCrossEntropy, orthogonal_loss
+from utils.losses import Entropy, SymmetricCrossEntropy
 from utils.misc import (
     compute_prototypes,
     confidence_condition,
@@ -54,22 +54,9 @@ class Ours(TTAMethod):
         for param in self.model_t1.parameters():
             param.detach_()
 
-        # configure teacher model (T1)
-        self.configure_model(self.model_t1, bn=True)
-        self.params_t1, _ = self.collect_params(self.model_t1)
-        lr = 0.01
-        if len(self.params_t1) > 0:
-            self.optimizer_t1 = self.setup_optimizer(self.params_t1, lr)
-
-        _ = self.get_number_trainable_params(self.params_t1, self.model_t1)
-
         # split up the T1 model
         self.backbone_t1, _ = split_up_model(
             self.model_t1, self.arch_name, self.dataset_name
-        )
-
-        self.optimizer_backbone_t1 = self.setup_optimizer(
-            self.backbone_t1.parameters(), 0.01
         )
 
         # setup teacher model (T2)
@@ -225,8 +212,6 @@ class Ours(TTAMethod):
             selected_labels_t1,
         )
 
-        logger.info(f"Prototypes: {prototypes.requires_grad}")
-
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
@@ -241,12 +226,6 @@ class Ours(TTAMethod):
         )
 
         loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2
-
-        # diversity loss
-        # loss_div = diversity_loss(outputs)
-
-        # orthogonality loss
-        # loss_ortho = orthogonal_loss(prototypes)
 
         return outputs, loss_stu, loss_t2
 
@@ -279,10 +258,6 @@ class Ours(TTAMethod):
                 self.optimizer_backbone_t2.zero_grad()
                 loss_t2.backward()
                 self.optimizer_backbone_t2.step()
-
-                # self.optimizer_backbone_t1.zero_grad()
-                # loss_ortho.backward(retain_graph=True)
-                # self.optimizer_backbone_t1.step()
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
