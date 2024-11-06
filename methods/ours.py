@@ -68,6 +68,10 @@ class Ours(TTAMethod):
             self.model_t1, self.arch_name, self.dataset_name
         )
 
+        self.optimizer_backbone_t1 = self.setup_optimizer(
+            self.backbone_t1.parameters(), 0.01
+        )
+
         # setup teacher model (T2)
         self.model_t2 = self.copy_model(self.model)
         for param in self.model_t2.parameters():
@@ -244,6 +248,9 @@ class Ours(TTAMethod):
         # orthogonality loss
         loss_ortho = orthogonal_loss(prototypes)
 
+        # log shape of prototypes
+        logger.info(f"Prototypes shape: {prototypes.shape}")
+
         return outputs, loss_stu, loss_t2, loss_ortho
 
     @torch.enable_grad()
@@ -268,17 +275,17 @@ class Ours(TTAMethod):
             with torch.amp.autocast("cuda"):
                 outputs, loss_stu, loss_t2, loss_ortho = self.loss_calculation(x)
 
-                # loss_ortho.requires_grad_ = True
+                self.optimizer_s.zero_grad()
+                loss_stu.backward()
+                self.optimizer_s.step()
 
                 self.optimizer_backbone_t2.zero_grad()
-                self.optimizer_s.zero_grad()
-                self.optimizer_t1.zero_grad()
-                loss_ortho.backward(retain_graph=True)
-                loss_stu.backward(retain_graph=True)
                 loss_t2.backward()
-                self.optimizer_t1.step()
-                self.optimizer_s.step()
                 self.optimizer_backbone_t2.step()
+
+                # self.optimizer_backbone_t1.zero_grad()
+                # loss_ortho.backward(retain_graph=True)
+                # self.optimizer_backbone_t1.step()
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
