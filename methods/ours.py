@@ -274,7 +274,8 @@ class Ours(TTAMethod):
 
                 self.optimizer_t1.zero_grad()
                 self.optimizer_t2.zero_grad()
-                loss_div.backward(retain_graph=True)
+                self.optimizer_s.zero_grad()
+                loss_div.backward()
                 self.optimizer_t1.step()
                 self.optimizer_t2.step()
 
