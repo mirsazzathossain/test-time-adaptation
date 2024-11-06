@@ -112,7 +112,7 @@ class Ours(TTAMethod):
             nn.ReLU(),
             nn.Linear(self.projection_dim, self.projection_dim),
         ).to(self.device)
-        self.optimizer_t2.add_param_group(
+        self.optimizer_backbone_t2.add_param_group(
             {
                 "params": self.projector.parameters(),
                 "lr": self.optimizer_t2.param_groups[0]["lr"],
