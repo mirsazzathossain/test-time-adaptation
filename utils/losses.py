@@ -16,7 +16,9 @@ class SymmetricCrossEntropy(nn.Module):
         self.alpha = alpha
 
     def __call__(self, x, x_ema):
-        return -(1-self.alpha) * (x_ema.softmax(1) * x.log_softmax(1)).sum(1) - self.alpha * (x.softmax(1) * x_ema.log_softmax(1)).sum(1)
+        return -(1 - self.alpha) * (x_ema.softmax(1) * x.log_softmax(1)).sum(
+            1
+        ) - self.alpha * (x.softmax(1) * x_ema.log_softmax(1)).sum(1)
 
 
 class AugCrossEntropy(nn.Module):
@@ -25,8 +27,9 @@ class AugCrossEntropy(nn.Module):
         self.alpha = alpha
 
     def __call__(self, x, x_aug, x_ema):
-        return -(1-self.alpha) * (x.softmax(1) * x_ema.log_softmax(1)).sum(1) \
-                  - self.alpha * (x_aug.softmax(1) * x_ema.log_softmax(1)).sum(1)
+        return -(1 - self.alpha) * (x.softmax(1) * x_ema.log_softmax(1)).sum(
+            1
+        ) - self.alpha * (x_aug.softmax(1) * x_ema.log_softmax(1)).sum(1)
 
 
 class SoftLikelihoodRatio(nn.Module):
@@ -38,11 +41,14 @@ class SoftLikelihoodRatio(nn.Module):
     def __call__(self, logits):
         probs = logits.softmax(1)
         probs = torch.clamp(probs, min=0.0, max=self.clip)
-        return - (probs * torch.log((probs / (torch.ones_like(probs) - probs)) + self.eps)).sum(1)
+        return -(
+            probs * torch.log((probs / (torch.ones_like(probs) - probs)) + self.eps)
+        ).sum(1)
 
 
 class GeneralizedCrossEntropy(nn.Module):
-    """ Paper: https://arxiv.org/abs/1805.07836 """
+    """Paper: https://arxiv.org/abs/1805.07836"""
+
     def __init__(self, q=0.8):
         super(GeneralizedCrossEntropy, self).__init__()
         self.q = q
@@ -52,7 +58,7 @@ class GeneralizedCrossEntropy(nn.Module):
         if targets is None:
             targets = probs.argmax(dim=1)
         probs_with_correct_idx = probs.index_select(-1, targets).diag()
-        return (1.0 - probs_with_correct_idx ** self.q) / self.q
+        return (1.0 - probs_with_correct_idx**self.q) / self.q
 
 
 def entropy_loss(probs) -> torch.Tensor:
@@ -80,7 +86,7 @@ def diversity_loss(ensemble_probs) -> torch.Tensor:
         The diversity loss.
     """
     mean_probs = ensemble_probs.mean(dim=0)
-    div = -torch.sum(mean_probs * torch.log(mean_probs + 1e-16), dim=1)
+    div = -torch.sum(mean_probs * torch.log(mean_probs + 1e-16))
     return div
 
 
