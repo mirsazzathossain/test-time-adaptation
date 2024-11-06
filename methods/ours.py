@@ -274,6 +274,8 @@ class Ours(TTAMethod):
             with torch.amp.autocast("cuda"):
                 outputs, loss_stu, loss_t2, loss_ortho = self.loss_calculation(x)
 
+                loss_ortho.requires_grad_ = True
+
                 self.optimizer_backbone_t2.zero_grad()
                 self.optimizer_s.zero_grad()
                 self.optimizer_t1.zero_grad()
