@@ -267,6 +267,14 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
+        self.model_t2 = ema_update_model(
+            model_to_update=self.model_t2,
+            model_to_merge=self.model_s,
+            momentum=self.m_teacher_momentum,
+            device=self.device,
+            update_all=True,
+        )
+
         self.c = self.c + 1
         return outputs
 
