@@ -273,7 +273,7 @@ class Ours(TTAMethod):
                 outputs, loss_stu, loss_t2, loss_div = self.loss_calculation(x)
 
                 self.optimizer_s.zero_grad()
-                loss_stu.backward(require_grad=True)
+                loss_stu.backward(retain_graph=True)
                 self.optimizer_s.step()
 
                 self.optimizer_backbone_t2.zero_grad()
