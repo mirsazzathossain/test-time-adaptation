@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from augmentations.transforms_cotta import get_tta_transforms
 from methods.base import TTAMethod
 from models.model import split_up_model
-from utils.losses import Entropy, SymmetricCrossEntropy, orthogonal_loss
+from utils.losses import Entropy, SymmetricCrossEntropy, orthogonal_loss, RMSNorm, differential_loss
 from utils.misc import (
     compute_prototypes,
     confidence_condition,
@@ -48,6 +48,8 @@ class Ours(TTAMethod):
         # setup loss functions
         self.symmetric_cross_entropy = SymmetricCrossEntropy()
         self.ent = Entropy()
+
+       
 
         # setup teacher model (T1)
         self.model_t1 = self.copy_model(self.model)
@@ -131,6 +133,23 @@ class Ours(TTAMethod):
             }
         )
 
+         #RMS Normalization
+        self.rms_norm = RMSNorm(num_channels)
+        self.lamda = nn.Parameter(torch.zeros(1, dtype=torch.float32).normal_(mean=0,std=0.1))
+
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.rms_norm.parameters(),
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            },
+            {
+                "params": self.lamda,
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+
+
+
     def prototype_updates(self, pqs, num_classes, features, entropies, labels):
         """
         Update the priority queues and compute the prototypes for the current batch.
@@ -197,6 +216,10 @@ class Ours(TTAMethod):
         )
         loss_self_training += 0.5 * self.symmetric_cross_entropy(outputs_s, outputs_t2)
         loss_stu = self.lambda_ce_trg * loss_self_training.mean(0)
+
+        #Calculate differential loss
+        loss_differential = differential_loss(outputs_s, outputs_t1, outputs_t2, self.rms_norm)
+        loss_stu += loss_differential
 
         # calculate the entropy of the outputs
         entropy_s = self.ent(outputs_s)

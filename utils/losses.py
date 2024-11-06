@@ -1,5 +1,17 @@
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
+class RMSNorm(nn.Module):
+    def __init__(self, dim, eps=1e-5):
+        super(RMSNorm, self).__init__()
+        self.eps = eps
+        self.scale = nn.Parameter(torch.ones(dim))  
+
+    def forward(self, x):
+        rms = x.pow(2).mean(dim=-1, keepdim=True).sqrt()  
+        x = x / (rms + self.eps)  
+        return self.scale * x 
 
 
 class Entropy(nn.Module):
@@ -120,3 +132,40 @@ def orthogonal_loss(prototypes) -> torch.Tensor:
     return torch.mm(prototypes, prototypes.t()).pow(2).sum() / (
         n_prototypes * (n_prototypes - 1)
     )
+
+
+def differential_loss(outputs, outputs_t1, outputs_t2,  lamda, rms_norm, thresh = 0.4):
+
+    #Calculate entropy for teacher 1 predictions
+    prob_t1 = torch.softmax(outputs_t1, dim = -1)
+    ent1 = -torch.sum(prob_t1 * torch.log(prob_t1 + 1e-16), dim=1)
+
+    #Calculate entropy for teacher 2 predictions
+    prob_t2 = torch.softmax(outputs_t2, dim = -1)
+    ent2 = -torch.sum(prob_t2 * torch.log(prob_t2 + 1e-16), dim=1)
+
+    #Select only those samples having entropies greater than threshold in both teacher's output
+    mask = (ent1 >= thresh and  ent2 >= thresh)
+
+    masked_prob_t1 = prob_t1[mask]
+    masked_prob_t2 = prob_t2[mask]
+
+    if len(masked_prob_t1) > 0:
+        diff = masked_prob_t1 - lamda * masked_prob_t2
+        output = rms_norm(diff)
+        return F.kl_div(torch.softmax(outputs, dim = -1), torch.softmax(output, dim = -1))
+    
+    return torch.tensor(0.0)
+        
+
+
+
+    
+
+
+
+
+
+
+
+
