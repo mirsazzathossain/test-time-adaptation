@@ -249,9 +249,9 @@ class Ours(TTAMethod):
         # loss_div = -torch.sum(outputs.mean(0) * torch.log(outputs.mean(0) + 1e-6))
         loss_div = 0
 
-        loss = loss_stu + loss_t2 + loss_div
+        # loss = loss_stu + loss_t2 + loss_div
 
-        return outputs, loss
+        return outputs, loss_stu, loss_t2, loss_div
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
@@ -273,17 +273,25 @@ class Ours(TTAMethod):
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss = self.loss_calculation(x)
+                outputs, loss_stu, loss_t2, loss_div = self.loss_calculation(x)
+
+                self.optimizer_s.zero_grad()
+                loss_stu.backward()
+                self.optimizer_s.step()
+
+                self.optimizer_backbone_t2.zero_grad()
+                loss_t2.backward()
+                self.optimizer_backbone_t2.step()
 
                 # self.optimizer_t1.zero_grad()
                 # self.optimizer_t2.zero_grad()
-                self.optimizer_backbone_t2.zero_grad()
-                self.optimizer_s.zero_grad()
-                loss.backward()
+                # self.optimizer_backbone_t2.zero_grad()
+                # self.optimizer_s.zero_grad()
+                # loss.backward()
                 # self.optimizer_t1.step()
                 # self.optimizer_t2.step()
-                self.optimizer_backbone_t2.step()
-                self.optimizer_s.step()
+                # self.optimizer_backbone_t2.step()
+                # self.optimizer_s.step()
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
