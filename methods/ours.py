@@ -246,12 +246,9 @@ class Ours(TTAMethod):
         # loss_div = diversity_loss(outputs)
 
         # orthogonality loss
-        loss_ortho = orthogonal_loss(prototypes)
+        # loss_ortho = orthogonal_loss(prototypes)
 
-        # log shape of prototypes
-        logger.info(f"Prototypes shape: {prototypes.shape}")
-
-        return outputs, loss_stu, loss_t2, loss_ortho
+        return outputs, loss_stu, loss_t2
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
@@ -273,7 +270,7 @@ class Ours(TTAMethod):
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss_stu, loss_t2, loss_ortho = self.loss_calculation(x)
+                outputs, loss_stu, loss_t2 = self.loss_calculation(x)
 
                 self.optimizer_s.zero_grad()
                 loss_stu.backward()
