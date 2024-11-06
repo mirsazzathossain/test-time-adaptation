@@ -228,6 +228,7 @@ class Ours(TTAMethod):
         # check if features t2 and t1 have gradients
         assert features_t2.requires_grad
         assert features_t1.requires_grad
+        assert prototypes.requires_grad
         logger.info(f"Features T1: {features_t1.requires_grad}")
         logger.info(f"Features T2: {features_t2.requires_grad}")
 
