@@ -54,19 +54,19 @@ class Ours(TTAMethod):
         for param in self.model_t1.parameters():
             param.detach_()
 
+        # configure teacher model (T1)
+        self.configure_model(self.model_t1, bn=True)
+        self.params_t1, _ = self.collect_params(self.model_t1)
+        lr = 0.01
+        if len(self.params_t1) > 0:
+            self.optimizer_t1 = self.setup_optimizer(self.params_t1, lr)
+
+        _ = self.get_number_trainable_params(self.params_t1, self.model_t1)
+
         # split up the T1 model
-        self.backbone_t1, self.classifier_t1 = split_up_model(
+        self.backbone_t1, _ = split_up_model(
             self.model_t1, self.arch_name, self.dataset_name
         )
-
-        # configure teacher model (T1)
-        # self.configure_model(self.model_t1)
-        # self.params_t1, _ = self.collect_params(self.model_t1)
-        # lr = 0.01
-        # if len(self.params_t1) > 0:
-        #     self.optimizer_t1 = self.setup_optimizer(self.params_t1, lr)
-
-        # _ = self.get_number_trainable_params(self.params_t1, self.model_t1)
 
         # setup teacher model (T2)
         self.model_t2 = self.copy_model(self.model)
@@ -74,7 +74,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure teacher model (T2)
-        self.configure_model(self.model_t2)
+        self.configure_model(self.model_t2, bn=True)
         self.params_t2, _ = self.collect_params(self.model_t2)
         lr = 0.01
         if len(self.params_t2) > 0:
@@ -83,14 +83,11 @@ class Ours(TTAMethod):
         _ = self.get_number_trainable_params(self.params_t2, self.model_t2)
 
         # split up the T2 model and setup optimizers
-        self.backbone_t2, self.classifier_t2 = split_up_model(
+        self.backbone_t2, _ = split_up_model(
             self.model_t2, self.arch_name, self.dataset_name
         )
         self.optimizer_backbone_t2 = self.setup_optimizer(
             self.backbone_t2.parameters(), 0.01
-        )
-        self.optimizer_classifier_t2 = self.setup_optimizer(
-            self.classifier_t2.parameters(), 0.01
         )
 
         # setup student model
@@ -269,15 +266,15 @@ class Ours(TTAMethod):
             with torch.amp.autocast("cuda"):
                 outputs, loss_stu, loss_t2, loss_ortho = self.loss_calculation(x)
 
-                loss_ortho.requires_grad_ = True
+                # loss_ortho.requires_grad_ = True
 
                 self.optimizer_backbone_t2.zero_grad()
                 self.optimizer_s.zero_grad()
-                # self.optimizer_t1.zero_grad()
-                # loss_ortho.backward()
+                self.optimizer_t1.zero_grad()
+                loss_ortho.backward()
                 loss_stu.backward(retain_graph=True)
                 loss_t2.backward()
-                # self.optimizer_t1.step()
+                self.optimizer_t1.step()
                 self.optimizer_s.step()
                 self.optimizer_backbone_t2.step()
 
