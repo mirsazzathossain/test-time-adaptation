@@ -60,7 +60,7 @@ class Ours(TTAMethod):
         )
 
         # configure teacher model (T1)
-        self.configure_model(self.model_t1, bn=True)
+        self.configure_model(self.model_t1)
         self.params_t1, _ = self.collect_params(self.model_t1)
         lr = 0.01
         if len(self.params_t1) > 0:
@@ -74,7 +74,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure teacher model (T2)
-        self.configure_model(self.model_t2, bn=True)
+        self.configure_model(self.model_t2)
         self.params_t2, _ = self.collect_params(self.model_t2)
         lr = 0.01
         if len(self.params_t2) > 0:
@@ -145,11 +145,6 @@ class Ours(TTAMethod):
         Returns:
             Tensor: Prototypes for the current batch
         """
-        # # make features, entropies, and labels free from gradients
-        # features = features.detach()
-        # entropies = entropies.detach()
-        # labels = labels.detach()
-
         update_pqs(pqs, features, entropies, labels)
 
         # pop the minimum element from the priority queues every 5 batches
