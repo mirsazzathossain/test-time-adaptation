@@ -68,7 +68,7 @@ def init_pqs(num_classes, max_size):
 
 def update_pqs(pqs, features, entropies, labels):
     for i in range(features.size(0)):
-        pqs[labels[i].item()].add(features[i], entropies[i].item())
+        pqs[labels[i].item()].add(features[i], entropies[i])
 
 def compute_prototypes(pqs, num_classes, feature_dim, device='cpu'):
     prototypes = []
@@ -78,11 +78,13 @@ def compute_prototypes(pqs, num_classes, feature_dim, device='cpu'):
             features = pqs[class_label].get_sorted_features()
             entropies = pqs[class_label].get_entropies()
 
-            logger.info(f"Features inside PQ: {features.requires_grad}")
-            logger.info(f"Entropies inside PQ: {entropies.requires_grad}")
-
             features = torch.stack([feature.to(device) for feature in features])
             entropies = torch.tensor(entropies).to(device)
+
+            print(features.requires_grad, entropies.requires_grad)
+
+            features = features.requires_grad_(True)
+            entropies = entropies.requires_grad_(True)
 
             # Add small epsilon to avoid division by zero
             weights = 1/(entropies + 1e-6)
@@ -93,7 +95,7 @@ def compute_prototypes(pqs, num_classes, feature_dim, device='cpu'):
             # Compute the prototype as the weighted sum of the features
             prototype = weighted_features.sum(dim=0) / weights.sum()
         else:
-            prototype = torch.zeros(feature_dim).to(device).requires_grad_(True)
+            prototype = torch.zeros(feature_dim).to(device)
 
         prototypes.append(prototype)
 
