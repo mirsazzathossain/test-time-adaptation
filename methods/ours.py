@@ -225,6 +225,10 @@ class Ours(TTAMethod):
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
 
+        # check if features t2 and t1 have gradients
+        assert features_t2.requires_grad
+        assert features_t1.requires_grad
+
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes, labels_t1, margin=0.5
         )
