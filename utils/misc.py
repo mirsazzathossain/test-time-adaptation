@@ -81,7 +81,8 @@ def compute_prototypes(pqs, num_classes, feature_dim, device='cpu'):
             features = torch.stack([feature.to(device) for feature in features])
             entropies = torch.tensor(entropies).to(device)
 
-            logger.info(f"{features.requires_grad}, {entropies.requires_grad}")
+            assert features.requires_grad
+            assert entropies.requires_grad
 
             features = features.requires_grad_(True)
             entropies = entropies.requires_grad_(True)
