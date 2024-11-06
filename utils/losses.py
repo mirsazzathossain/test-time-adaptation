@@ -103,3 +103,20 @@ def info_max_loss(probs) -> torch.Tensor:
     ent = entropy_loss(probs)
     div = diversity_loss(probs)
     return ent - div
+
+
+def orthogonal_loss(prototypes) -> torch.Tensor:
+    """
+    Calculate the orthogonal loss for a set of prototypes.
+
+    Args:
+        prototypes: The prototypes.
+
+    Returns:
+        The orthogonal loss.
+    """
+    n_prototypes = prototypes.size(0)
+    prototypes = prototypes.view(n_prototypes, -1)
+    return torch.mm(prototypes, prototypes.t()).pow(2).sum() / (
+        n_prototypes * (n_prototypes - 1)
+    )

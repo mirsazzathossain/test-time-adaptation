@@ -9,7 +9,7 @@ import torch.nn.functional as F
 from augmentations.transforms_cotta import get_tta_transforms
 from methods.base import TTAMethod
 from models.model import split_up_model
-from utils.losses import Entropy, SymmetricCrossEntropy, diversity_loss
+from utils.losses import Entropy, SymmetricCrossEntropy, orthogonal_loss
 from utils.misc import (
     compute_prototypes,
     confidence_condition,
@@ -145,10 +145,10 @@ class Ours(TTAMethod):
         Returns:
             Tensor: Prototypes for the current batch
         """
-        # make features, entropies, and labels free from gradients
-        features = features.detach()
-        entropies = entropies.detach()
-        labels = labels.detach()
+        # # make features, entropies, and labels free from gradients
+        # features = features.detach()
+        # entropies = entropies.detach()
+        # labels = labels.detach()
 
         update_pqs(pqs, features, entropies, labels)
 
@@ -247,7 +247,10 @@ class Ours(TTAMethod):
         # diversity loss
         # loss_div = diversity_loss(outputs)
 
-        return outputs, loss_stu, loss_t2
+        # orthogonality loss
+        loss_ortho = orthogonal_loss(prototypes)
+
+        return outputs, loss_stu, loss_t2, loss_ortho
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
@@ -269,12 +272,15 @@ class Ours(TTAMethod):
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss_stu, loss_t2 = self.loss_calculation(x)
+                outputs, loss_stu, loss_t2, loss_ortho = self.loss_calculation(x)
 
                 self.optimizer_backbone_t2.zero_grad()
                 self.optimizer_s.zero_grad()
+                self.optimizer_t1.zero_grad()
+                loss_ortho.backward()
                 loss_stu.backward()
                 loss_t2.backward()
+                self.optimizer_t1.step()
                 self.optimizer_s.step()
                 self.optimizer_backbone_t2.step()
 
