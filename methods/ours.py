@@ -60,13 +60,13 @@ class Ours(TTAMethod):
         )
 
         # configure teacher model (T1)
-        self.configure_model(self.model_t1)
-        self.params_t1, _ = self.collect_params(self.model_t1)
-        lr = 0.01
-        if len(self.params_t1) > 0:
-            self.optimizer_t1 = self.setup_optimizer(self.params_t1, lr)
+        # self.configure_model(self.model_t1)
+        # self.params_t1, _ = self.collect_params(self.model_t1)
+        # lr = 0.01
+        # if len(self.params_t1) > 0:
+        #     self.optimizer_t1 = self.setup_optimizer(self.params_t1, lr)
 
-        _ = self.get_number_trainable_params(self.params_t1, self.model_t1)
+        # _ = self.get_number_trainable_params(self.params_t1, self.model_t1)
 
         # setup teacher model (T2)
         self.model_t2 = self.copy_model(self.model)
