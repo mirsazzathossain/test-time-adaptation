@@ -60,6 +60,15 @@ class Ours(TTAMethod):
             self.model_t1, self.arch_name, self.dataset_name
         )
 
+        # configure teacher model (T1)
+        self.configure_model(self.model_t1, bn=True)
+        self.params_t1, _ = self.collect_params(self.model_t1)
+        lr = 0.01
+        if len(self.params_t1) > 0:
+            self.optimizer_t1 = self.setup_optimizer(self.params_t1, lr)
+
+        _ = self.get_number_trainable_params(self.params_t1, self.model_t1)
+
         # setup teacher model (T2)
         self.model_t2 = self.copy_model(self.model)
         for param in self.model_t2.parameters():
@@ -92,13 +101,13 @@ class Ours(TTAMethod):
 
         # configure student model
         self.configure_model(self.model_s)
-        self.params, _ = self.collect_params(self.model_s)
+        self.params_s, _ = self.collect_params(self.model_s)
         lr = self.cfg.OPTIM.LR
 
-        if len(self.params) > 0:
-            self.optimizer_bn = self.setup_optimizer(self.params, lr)
+        if len(self.params_s) > 0:
+            self.optimizer_s = self.setup_optimizer(self.params_s, lr)
 
-        _ = self.get_number_trainable_params(self.params, self.model)
+        _ = self.get_number_trainable_params(self.params_s, self.model_s)
 
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
@@ -236,7 +245,13 @@ class Ours(TTAMethod):
 
         loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2
 
-        return outputs, loss_stu, loss_t2
+        # diversity loss
+        # loss_div = -torch.sum(outputs.mean(0) * torch.log(outputs.mean(0) + 1e-6))
+        loss_div = 0
+
+        loss = loss_stu + loss_t2 + loss_div
+
+        return outputs, loss
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
@@ -258,18 +273,17 @@ class Ours(TTAMethod):
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss, loss_t2 = self.loss_calculation(x)
-                loss.requires_grad_(True)
-                loss.backward(retain_graph=True)
+                outputs, loss = self.loss_calculation(x)
 
-                self.optimizer_bn.step()
-                self.optimizer_bn.zero_grad()
-
-                loss_t2.requires_grad_(True)
-                loss_t2.backward()
-
-                self.optimizer_backbone_t2.step()
+                self.optimizer_t1.zero_grad()
+                self.optimizer_t2.zero_grad()
                 self.optimizer_backbone_t2.zero_grad()
+                self.optimizer_s.zero_grad()
+                loss.backward()
+                self.optimizer_t1.step()
+                self.optimizer_t2.step()
+                self.optimizer_backbone_t2.step()
+                self.optimizer_s.step()
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
