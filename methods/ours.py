@@ -10,7 +10,7 @@ from augmentations.transforms_cotta import get_tta_transforms
 from datasets.data_loading import get_source_loader
 from methods.base import TTAMethod
 from models.model import split_up_model
-from utils.losses import Entropy, SymmetricCrossEntropy
+from utils.losses import Entropy, SymmetricCrossEntropy, diversity_loss
 from utils.misc import (
     compute_prototypes,
     confidence_condition,
@@ -246,10 +246,7 @@ class Ours(TTAMethod):
         loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2
 
         # diversity loss
-        # loss_div = -torch.sum(outputs.mean(0) * torch.log(outputs.mean(0) + 1e-6))
-        loss_div = 0
-
-        # loss = loss_stu + loss_t2 + loss_div
+        loss_div = diversity_loss(outputs)
 
         return outputs, loss_stu, loss_t2, loss_div
 
@@ -278,6 +275,12 @@ class Ours(TTAMethod):
                 self.optimizer_s.zero_grad()
                 loss_stu.backward()
                 self.optimizer_s.step()
+
+                self.optimizer_t1.zero_grad()
+                self.optimizer_t2.zero_grad()
+                loss_div.backward()
+                self.optimizer_t1.step()
+                self.optimizer_t2.step()
 
                 self.optimizer_backbone_t2.zero_grad()
                 loss_t2.backward()

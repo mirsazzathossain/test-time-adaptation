@@ -1,13 +1,12 @@
 import logging
-from collections import defaultdict
 import os
+from collections import defaultdict
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from sklearn.manifold import TSNE
-
 import wandb
+from sklearn.manifold import TSNE
 
 logger = logging.getLogger(__name__)
 
@@ -167,20 +166,3 @@ def get_matching_and_different_ids(out_1, out_2):
     different_ids = torch.where(pred_1 != pred_2).nonzero(as_tuple=True)[0]
 
     return matching_ids, different_ids
-
-def entropy(input_tensor):
-    eps = 1e-6
-    entropy = -input_tensor * torch.log(input_tensor + eps)
-    entropy = entropy.sum(dim=1)
-    return entropy.mean()
-
-def gentropy(softmax_output):
-    eps = 1e-6
-    mean_softmax = softmax_output.mean(dim=0)
-    entropy = -mean_softmax * torch.log(mean_softmax + eps)
-    return entropy.sum()
-
-def ent_loss(output):
-    softmax_output = torch.nn.functional.softmax(output, dim=1)
-    entropy_loss = entropy(softmax_output) - gentropy(softmax_output)
-    return entropy_loss

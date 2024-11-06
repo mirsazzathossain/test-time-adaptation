@@ -53,3 +53,47 @@ class GeneralizedCrossEntropy(nn.Module):
             targets = probs.argmax(dim=1)
         probs_with_correct_idx = probs.index_select(-1, targets).diag()
         return (1.0 - probs_with_correct_idx ** self.q) / self.q
+
+
+def entropy_loss(probs) -> torch.Tensor:
+    """
+    Calculate the entropy loss for a given probability distribution.
+
+    Args:
+        probs: The probability distribution.
+
+    Returns:
+        The entropy loss.
+    """
+    ent = -torch.sum(probs * torch.log(probs + 1e-16), dim=1)
+    return ent.mean()
+
+
+def diversity_loss(ensemble_probs) -> torch.Tensor:
+    """
+    Calculate the diversity loss for an ensemble of models.
+
+    Args:
+        ensemble_probs: The probability distributions of the ensemble.
+
+    Returns:
+        The diversity loss.
+    """
+    mean_probs = ensemble_probs.mean(dim=0)
+    div = -torch.sum(mean_probs * torch.log(mean_probs + 1e-16), dim=1)
+    return div
+
+
+def info_max_loss(probs) -> torch.Tensor:
+    """
+    Calculate the information maximization loss for a given probability distribution.
+
+    Args:
+        probs: The probability distribution.
+
+    Returns:
+        The information maximization loss.
+    """
+    ent = entropy_loss(probs)
+    div = diversity_loss(probs)
+    return ent - div
