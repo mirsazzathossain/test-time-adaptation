@@ -213,10 +213,6 @@ class Ours(TTAMethod):
         labels_t1 = torch.argmax(outputs_t1, dim=1)
         selected_labels_t1 = labels_t1[selected_filter_ids]
 
-        logger.info(f"Selected features: {selected_features_t1.requires_grad}")
-        logger.info(f"Selected entropy: {selected_entropy_t1.requires_grad}")
-        logger.info(f"Selected labels: {selected_labels_t1.requires_grad}")
-
         prototypes = self.prototype_updates(
             self.priority_queues,
             self.num_classes,
@@ -224,6 +220,8 @@ class Ours(TTAMethod):
             selected_entropy_t1,
             selected_labels_t1,
         )
+
+        logger.info(f"Prototypes: {prototypes.requires_grad}")
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
