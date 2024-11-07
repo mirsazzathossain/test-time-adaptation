@@ -187,13 +187,6 @@ _C.RMT.NUM_SAMPLES_WARM_UP = 50000  # Number of samples used during the mean tea
 
 # --------------------------------- Ours options ----------------------------- #
 _C.Ours = CfgNode()
-
-_C.Ours.LAMBDA_CE_SRC = (
-    1.0  # Lambda for source replay. Set to 0 for source-free variant
-)  # Lambda for source replay. Set to 0 for source-free variant
-_C.Ours.LAMBDA_CE_TRG = 1.0  # Lambda for self-training
-_C.Ours.LAMBDA_CONT = 1.0  # Lambda for contrastive learning
-_C.Ours.NUM_SAMPLES_WARM_UP = 50000  # Number of samples used during the mean teacher warm-up
 _C.Ours.LOSSES = [
     "ce_s_t1",
     "ce_s_t2",

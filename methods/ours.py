@@ -1,5 +1,4 @@
 import logging
-import os
 from copy import deepcopy
 
 import torch
@@ -41,9 +40,6 @@ class Ours(TTAMethod):
         self.temperature = cfg.CONTRAST.TEMPERATURE
         self.base_temperature = self.temperature
         self.projection_dim = cfg.CONTRAST.PROJECTION_DIM
-        self.lambda_ce_src = cfg.Ours.LAMBDA_CE_SRC
-        self.lambda_ce_trg = cfg.Ours.LAMBDA_CE_TRG
-        self.lambda_cont = cfg.Ours.LAMBDA_CONT
         self.m_teacher_momentum = cfg.M_TEACHER.MOMENTUM
         self.final_lr = cfg.OPTIM.LR
         arch_name = cfg.MODEL.ARCH
@@ -224,7 +220,6 @@ class Ours(TTAMethod):
         outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
 
         # student model loss
-        self.lambda_ce_trg = 1
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
             loss_self_training += 0.5 * self.symmetric_cross_entropy(
@@ -238,7 +233,7 @@ class Ours(TTAMethod):
             loss_self_training += 0.5 * self.symmetric_cross_entropy(
                 outputs_stu_aug, outputs_t1.detach()
             )
-        loss_stu = self.lambda_ce_trg * loss_self_training.mean(0)
+        loss_stu = loss_self_training.mean(0)
 
         # calculate the entropy of the outputs
         entropy_s = self.ent(outputs_s)
@@ -281,7 +276,7 @@ class Ours(TTAMethod):
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
         im_loss = info_max_loss(outputs)
-        
+
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2_proto
