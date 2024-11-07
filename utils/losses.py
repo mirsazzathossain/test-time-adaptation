@@ -123,8 +123,23 @@ def orthogonal_loss(prototypes) -> torch.Tensor:
     )
 
 
-def differential_loss(outputs, outputs_t1, outputs_t2, lamda, rms_norm, thresh=0.4):
-    print(outputs.shape)
+def differential_loss(
+    outputs, outputs_t1, outputs_t2, lamda, rms_norm, thresh=0.4
+) -> torch.Tensor:
+    """
+    Calculate the differential loss between two teacher models.
+
+    Args:
+        outputs: The student model's output.
+        outputs_t1: The first teacher model's output.
+        outputs_t2: The second teacher model's output.
+        lamda: The scaling factor.
+        rms_norm: The RMSNorm layer.
+        thresh: The entropy threshold.
+
+    Returns:
+        The differential loss.
+    """
     # Calculate entropy for teacher 1 predictions
     prob_t1 = torch.softmax(outputs_t1, dim=-1)
     ent1 = -torch.sum(prob_t1 * torch.log(prob_t1 + 1e-16), dim=1)
@@ -152,6 +167,8 @@ def differential_loss(outputs, outputs_t1, outputs_t2, lamda, rms_norm, thresh=0
 
 
 class RMSNorm(nn.Module):
+    """RMSNorm Implementation"""
+
     def __init__(self, dim, device, eps=1e-5):
         super(RMSNorm, self).__init__()
         self.eps = eps

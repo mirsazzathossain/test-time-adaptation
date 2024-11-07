@@ -114,6 +114,26 @@ class Ours(TTAMethod):
 
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
 
+        # setup differential loss
+        self.rms_norm = RMSNorm(num_classes, self.device)
+        self.lamda_ = nn.Parameter(
+            torch.zeros(1, dtype=torch.float32, device=self.device, requires_grad=True)
+        )
+        self.lamda_.data.normal_(mean=0, std=0.1)
+
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.rms_norm.parameters(),
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.lamda_,
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
 
@@ -137,25 +157,6 @@ class Ours(TTAMethod):
             }
         )
 
-        self.rms_norm = RMSNorm(num_classes, self.device)
-        self.lamda_ = nn.Parameter(
-            torch.zeros(1, dtype=torch.float32, device=self.device, requires_grad=True)
-        )
-        self.lamda_.data.normal_(mean=0, std=0.1)
-
-        self.optimizer_s.add_param_group(
-            {
-                "params": self.rms_norm.parameters(),
-                "lr": self.optimizer_s.param_groups[0]["lr"],
-            }
-        )
-        self.optimizer_s.add_param_group(
-            {
-                "params": self.lamda_,
-                "lr": self.optimizer_s.param_groups[0]["lr"],
-            }
-        )
-
     def prototype_updates(self, pqs, num_classes, features, entropies, labels):
         """
         Update the priority queues and compute the prototypes for the current batch.
@@ -170,8 +171,10 @@ class Ours(TTAMethod):
         Returns:
             Tensor: Prototypes for the current batch
         """
+        # detach the features and entropies
         features = features.detach()
         entropies = entropies.detach()
+
         update_pqs(pqs, features, entropies, labels)
 
         # pop the minimum element from the priority queues every 5 batches
@@ -316,6 +319,14 @@ class Ours(TTAMethod):
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
+            model_to_merge=self.model_s,
+            momentum=self.m_teacher_momentum,
+            device=self.device,
+            update_all=True,
+        )
+
+        self.model_t2 = ema_update_model(
+            model_to_update=self.model_t2,
             model_to_merge=self.model_s,
             momentum=self.m_teacher_momentum,
             device=self.device,
