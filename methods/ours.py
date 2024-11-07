@@ -54,9 +54,21 @@ class Ours(TTAMethod):
         for param in self.model_t1.parameters():
             param.detach_()
 
+        # configure teacher model (T1)
+        self.configure_model(self.model_t1, bn=True)
+        self.params_t1, _ = self.collect_params(self.model_t1)
+        lr = 0.01
+        if len(self.params_t1) > 0:
+            self.optimizer_t1 = self.setup_optimizer(self.params_t1, lr)
+
+        _ = self.get_number_trainable_params(self.params_t1, self.model_t1)
+
         # split up the T1 model
         self.backbone_t1, _ = split_up_model(
             self.model_t1, self.arch_name, self.dataset_name
+        )
+        self.optimizer_backbone_t1 = self.setup_optimizer(
+            self.backbone_t1.parameters(), 0.01
         )
 
         # setup teacher model (T2)
@@ -261,14 +273,6 @@ class Ours(TTAMethod):
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
-            model_to_merge=self.model_s,
-            momentum=self.m_teacher_momentum,
-            device=self.device,
-            update_all=True,
-        )
-
-        self.model_t2 = ema_update_model(
-            model_to_update=self.model_t2,
             model_to_merge=self.model_s,
             momentum=self.m_teacher_momentum,
             device=self.device,
