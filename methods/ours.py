@@ -225,15 +225,19 @@ class Ours(TTAMethod):
 
         # student model loss
         self.lambda_ce_trg = 1
-        loss_self_training = 0.5 * self.symmetric_cross_entropy(
-            outputs_s, outputs_t1.detach()
-        )
-        loss_self_training += 0.5 * self.symmetric_cross_entropy(
-            outputs_stu_aug, outputs_t1.detach()
-        )
-        loss_self_training += 0.5 * self.symmetric_cross_entropy(
-            outputs_s, outputs_t2.detach()
-        )
+        loss_self_training = 0.0
+        if "ce_s_t1" in self.cfg.Ours.LOSSES:
+            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+                outputs_s, outputs_t1.detach()
+            )
+        if "ce_s_t2" in self.cfg.Ours.LOSSES:
+            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+                outputs_s, outputs_t2.detach()
+            )
+        if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
+            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+                outputs_stu_aug, outputs_t1.detach()
+            )
         loss_stu = self.lambda_ce_trg * loss_self_training.mean(0)
 
         # calculate the entropy of the outputs
@@ -277,8 +281,18 @@ class Ours(TTAMethod):
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
         im_loss = info_max_loss(outputs)
-
-        loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2 + im_loss
+        
+        loss_t2 = 0.0
+        if "contr_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += cntrs_t2_proto
+        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += 10 * mse_t2
+        if "kld_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += 100 * kld_t2
+        if "contr_t2" in self.cfg.Ours.LOSSES:
+            loss_t2 += cntrs_t2
+        if "im_loss" in self.cfg.Ours.LOSSES:
+            loss_t2 += im_loss
 
         loss_differential = differential_loss(
             outputs_s,
@@ -287,7 +301,8 @@ class Ours(TTAMethod):
             self.lamda_,
             self.rms_norm,
         )
-        loss_stu += loss_differential
+        if "differ_loss" in self.cfg.Ours.LOSSES:
+            loss_stu += loss_differential
 
         if self.c == 0:
             mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
@@ -297,7 +312,10 @@ class Ours(TTAMethod):
 
         self.feature_bank = features_t2
 
-        return outputs, loss_stu, loss_t2 + mem_loss
+        if "mem_loss" in self.cfg.Ours.LOSSES:
+            loss_t2 += mem_loss
+
+        return outputs, loss_stu, loss_t2
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):

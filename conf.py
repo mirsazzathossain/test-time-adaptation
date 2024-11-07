@@ -194,7 +194,16 @@ _C.Ours.LAMBDA_CE_SRC = (
 _C.Ours.LAMBDA_CE_TRG = 1.0  # Lambda for self-training
 _C.Ours.LAMBDA_CONT = 1.0  # Lambda for contrastive learning
 _C.Ours.NUM_SAMPLES_WARM_UP = 50000  # Number of samples used during the mean teacher warm-up
-
+_C.Ours.LOSSES = [
+    "ce_s_t1",
+    "ce_s_t2",
+    "ce_s_aug_t1",
+    "contr_t2_proto",
+    "mse_t2_proto",
+    "contr_t2",
+    "im_loss",
+    "differ_loss",
+]
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()
 
