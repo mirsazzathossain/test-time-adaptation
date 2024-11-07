@@ -1,17 +1,18 @@
-import os
-import torch
 import logging
-import numpy as np
-import methods
-import wandb
+import os
 import time
 
-from models.model import get_model
-from utils.misc import print_memory_info
-from utils.eval_utils import get_accuracy, eval_domain_dict
-from utils.registry import ADAPTATION_REGISTRY
+import numpy as np
+import torch
+import wandb
+
+import methods
+from conf import cfg, ckpt_path_to_domain_seq, get_num_classes, load_cfg_from_args
 from datasets.data_loading import get_test_loader
-from conf import cfg, load_cfg_from_args, get_num_classes, ckpt_path_to_domain_seq
+from models.model import get_model
+from utils.eval_utils import eval_domain_dict, get_accuracy
+from utils.misc import print_memory_info
+from utils.registry import ADAPTATION_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -202,5 +203,33 @@ if __name__ == '__main__':
 
     # ========================================================================== 
     
-    wandb.init(project="test-time-adaptation", dir="output")
+    wandb.init(project="tta", dir="output")
+    
+    # log a description of the model:
+    if cfg.MODEL.ADAPTATION == "Ours":
+        loss_name = {
+            "ce_s_t1": "Symmetric Cross Entropy (T1)",
+            "ce_s_t2": "Symmetric Cross Entropy (T2)",
+            "ce_s_aug_t1": "Symmetric Cross Entropy (Aug X to T1)",
+            "contr_t2_proto": "Contrastive (T2 - Prototype)",
+            "mse_t2_proto": "MSE (T2 - Prototype)",
+            "contr_t2": "Contrastive (T2 - Aug and Prototype)",
+            "im_loss": "Information Maximization Loss (T2)",
+            "differ_loss": "Differential Loss (S - T1 - T2)",
+            "mem_loss": "Maximum Mean Discrepancy Loss (T2)",
+            "kld_t2_proto": "KL Divergence Loss (T2 - Prototype)"
+        }
+
+        desc = f"Dataset: {cfg.CORRUPTION.DATASET}\nSetup: {cfg.SETTING}\nTraining Strategy: Batch Normalization (T1), All Layers (S, T2)\nLoss: \n"
+        
+        student_losses = [loss_name[loss] for loss in cfg.Ours.LOSSES if loss in ["ce_s_t1", "ce_s_t2", "ce_s_aug_t1", "differ_loss"]]
+        t2_losses = [loss_name[loss] for loss in cfg.Ours.LOSSES if loss in ["contr_t2_proto", "mse_t2_proto", "contr_t2", "im_loss", "mem_loss", "kld_t2_proto"]]
+
+        desc += "\t- S: " + ", ".join(student_losses) + "\n"
+        desc += "\t- T1: EMA using S weights\n"
+        desc += "\t- T2: " + ", ".join(t2_losses)
+        
+        logger.info(desc)
+        wandb.run.description = desc
+
     evaluate('"Evaluation.')

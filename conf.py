@@ -203,6 +203,7 @@ _C.Ours.LOSSES = [
     "contr_t2",
     "im_loss",
     "differ_loss",
+    "kld_t2_proto",
 ]
 # --------------------------------- SANTA options --------------------------- #
 _C.SANTA = CfgNode()
