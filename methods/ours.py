@@ -11,6 +11,7 @@ from methods.base import TTAMethod
 from models.model import split_up_model
 from utils.losses import (
     Entropy,
+    MMDLoss,
     RMSNorm,
     SymmetricCrossEntropy,
     differential_loss,
@@ -20,6 +21,7 @@ from utils.misc import (
     compute_prototypes,
     confidence_condition,
     ema_update_model,
+    ghajini,
     init_pqs,
     plot_tsne,
     pop_min_from_pqs,
@@ -136,6 +138,7 @@ class Ours(TTAMethod):
 
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
+        self.prev_pri
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
@@ -156,6 +159,9 @@ class Ours(TTAMethod):
                 "lr": self.optimizer_t2.param_groups[0]["lr"],
             }
         )
+
+        # keep a feature bank
+        self.feature_bank = None
 
     def prototype_updates(self, pqs, num_classes, features, entropies, labels):
         """
@@ -285,7 +291,15 @@ class Ours(TTAMethod):
         )
         loss_stu += loss_differential
 
-        return outputs, loss_stu, loss_t2
+        if self.c == 0:
+            mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
+        else:
+            self.ghajini = MMDLoss()
+            mem_loss = self.ghajini(self.feature_bank, features_t2)
+
+        self.feature_bank = features_t2
+
+        return outputs, loss_stu, loss_t2 + mem_loss
 
     @torch.enable_grad()
     def forward_and_adapt(self, x):
