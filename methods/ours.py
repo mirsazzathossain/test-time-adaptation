@@ -105,7 +105,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure student model
-        self.configure_model(self.model_s)
+        self.configure_model(self.model_s, bn=True)
         self.params_s, _ = self.collect_params(self.model_s)
         lr = self.cfg.OPTIM.LR
 
@@ -319,14 +319,6 @@ class Ours(TTAMethod):
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
-            model_to_merge=self.model_s,
-            momentum=self.m_teacher_momentum,
-            device=self.device,
-            update_all=True,
-        )
-
-        self.model_t2 = ema_update_model(
-            model_to_update=self.model_t2,
             model_to_merge=self.model_s,
             momentum=self.m_teacher_momentum,
             device=self.device,
