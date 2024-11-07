@@ -9,7 +9,13 @@ import torch.nn.functional as F
 from augmentations.transforms_cotta import get_tta_transforms
 from methods.base import TTAMethod
 from models.model import split_up_model
-from utils.losses import Entropy, SymmetricCrossEntropy
+from utils.losses import (
+    Entropy,
+    RMSNorm,
+    SymmetricCrossEntropy,
+    differential_loss,
+    info_max_loss,
+)
 from utils.misc import (
     compute_prototypes,
     confidence_condition,
@@ -131,6 +137,25 @@ class Ours(TTAMethod):
             }
         )
 
+        self.rms_norm = RMSNorm(num_classes, self.device)
+        self.lamda_ = nn.Parameter(
+            torch.zeros(1, dtype=torch.float32, device=self.device, requires_grad=True)
+        )
+        self.lamda_.data.normal_(mean=0, std=0.1)
+
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.rms_norm.parameters(),
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.lamda_,
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+
     def prototype_updates(self, pqs, num_classes, features, entropies, labels):
         """
         Update the priority queues and compute the prototypes for the current batch.
@@ -145,6 +170,8 @@ class Ours(TTAMethod):
         Returns:
             Tensor: Prototypes for the current batch
         """
+        features = features.detach()
+        entropies = entropies.detach()
         update_pqs(pqs, features, entropies, labels)
 
         # pop the minimum element from the priority queues every 5 batches
@@ -187,15 +214,19 @@ class Ours(TTAMethod):
         outputs_stu_aug = self.model_s(x_aug)
 
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
 
         # student model loss
         self.lambda_ce_trg = 1
-        loss_self_training = 0.5 * self.symmetric_cross_entropy(outputs_s, outputs_t1)
-        loss_self_training += 0.5 * self.symmetric_cross_entropy(
-            outputs_stu_aug, outputs_t1
+        loss_self_training = 0.5 * self.symmetric_cross_entropy(
+            outputs_s, outputs_t1.detach()
         )
-        loss_self_training += 0.5 * self.symmetric_cross_entropy(outputs_s, outputs_t2)
+        loss_self_training += 0.5 * self.symmetric_cross_entropy(
+            outputs_stu_aug, outputs_t1.detach()
+        )
+        loss_self_training += 0.5 * self.symmetric_cross_entropy(
+            outputs_s, outputs_t2.detach()
+        )
         loss_stu = self.lambda_ce_trg * loss_self_training.mean(0)
 
         # calculate the entropy of the outputs
@@ -229,15 +260,27 @@ class Ours(TTAMethod):
         features_aug_t2 = self.backbone_t2(x_aug)
 
         cntrs_t2_proto = self.contrastive_loss_proto(
-            features_t2, prototypes, labels_t1, margin=0.5
+            features_t2, prototypes.detach(), labels_t1, margin=0.5
         )
-        mse_t2 = F.mse_loss(features_t2, prototypes[labels_t1], reduction="mean")
-        kld_t2 = self.KL_Div_loss(features_t2, prototypes, labels_t1)
+        mse_t2 = F.mse_loss(
+            features_t2, prototypes[labels_t1].detach(), reduction="mean"
+        )
+        kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
-            features_t2, prototypes, features_aug_t2, labels=None, mask=None
+            features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
+        im_loss = info_max_loss(outputs)
 
-        loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2
+        loss_t2 = cntrs_t2_proto + 10 * mse_t2 + 100 * kld_t2 + cntrs_t2 + im_loss
+
+        loss_differential = differential_loss(
+            outputs_s,
+            outputs_t1.detach(),
+            outputs_t2.detach(),
+            self.lamda_,
+            self.rms_norm,
+        )
+        loss_stu += loss_differential
 
         return outputs, loss_stu, loss_t2
 
