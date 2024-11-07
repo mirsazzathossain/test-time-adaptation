@@ -52,7 +52,7 @@ def evaluate(description):
     logger.info(f"Successfully prepared test-time adaptation method: {cfg.MODEL.ADAPTATION}")
 
     # ==========================================================================
-    if cfg.MODEL.ADAPTATION == "Ours":
+    if cfg.MODEL.ADAPTATION == "ours":
         loss_name = {
             "ce_s_t1": "Symmetric Cross Entropy (T1)",
             "ce_s_t2": "Symmetric Cross Entropy (T2)",
@@ -66,7 +66,7 @@ def evaluate(description):
             "kld_t2_proto": "KL Divergence Loss (T2 - Prototype)",
         }
 
-        desc = f"Dataset: {cfg.CORRUPTION.DATASET}\nSetup: {cfg.SETTING}\nTraining Strategy: Batch Normalization (T1), All Layers (S, T2)\nLoss: \n"
+        desc = f"\n\nDataset: {cfg.CORRUPTION.DATASET}\nSetup: {cfg.SETTING}\nTraining Strategy: Batch Normalization (T1, T2), All Layers (S)\nLoss: \n"
 
         student_losses = [
             loss_name[loss]
@@ -87,11 +87,12 @@ def evaluate(description):
             ]
         ]
 
-        desc += "\t- S: " + ", ".join(student_losses) + "\n"
-        desc += "\t- T1: EMA using S weights\n"
-        desc += "\t- T2: " + ", ".join(t2_losses)
+        desc += "  - S: " + ", ".join(student_losses) + "\n"
+        desc += "  - T1: EMA using S weights\n"
+        desc += "  - T2: " + ", ".join(t2_losses) + "\n"
 
-        wandb.run.description = desc
+        wandb.summary["description"] = desc
+        logger.info(desc)
     # ==========================================================================
 
     # get the test sequence containing the corruptions or domain names
