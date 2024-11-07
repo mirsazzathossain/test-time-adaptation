@@ -25,7 +25,8 @@ def evaluate(description):
                       "correlated",                 # sorted by class label
                       "mixed_domains_correlated",   # mixed domains + sorted by class label
                       "gradual_correlated",         # gradual domain shifts + sorted by class label
-                      "reset_each_shift_correlated"
+                      "reset_each_shift_correlated",
+                      "continual_mixed_domain",
                       ]
     assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
 
@@ -116,6 +117,52 @@ def evaluate(description):
                 dataset_name=cfg.CORRUPTION.DATASET,
                 domain_name=domain_name,
                 setting=cfg.SETTING,
+                domain_dict=domain_dict,
+                print_every=cfg.PRINT_EVERY,
+                device=device
+            )
+
+            err = 1. - acc
+            errs.append(err)
+            if severity == 5 and domain_name != "none":
+                errs_5.append(err)
+
+            logger.info(f"{cfg.CORRUPTION.DATASET} error % [{domain_name}{severity}][#samples={num_samples}]: {err:.2%}")
+
+    if cfg.SETTING == "continual_mixed_domain":
+        i_dom, domain_name = 0, 'mixed'
+
+        for severity in severities:
+            test_data_loader = get_test_loader(
+                setting='mixed_domains',
+                adaptation=cfg.MODEL.ADAPTATION,
+                dataset_name=cfg.CORRUPTION.DATASET,
+                preprocess=model_preprocess,
+                data_root_dir=cfg.DATA_DIR,
+                domain_name=domain_name,
+                domain_names_all=domain_sequence,
+                severity=severity,
+                num_examples=cfg.CORRUPTION.NUM_EX,
+                rng_seed=cfg.RNG_SEED,
+                use_clip=cfg.MODEL.USE_CLIP,
+                n_views=cfg.TEST.N_AUGMENTATIONS,
+                delta_dirichlet=cfg.TEST.DELTA_DIRICHLET,
+                batch_size=cfg.TEST.BATCH_SIZE,
+                shuffle=False,
+                workers=min(cfg.TEST.NUM_WORKERS, os.cpu_count())
+            )
+
+            if i_dom == 0:
+                # Note that the input normalization is done inside of the model
+                logger.info(f"Using the following data transformation:\n{test_data_loader.dataset.transform}")
+
+            # evaluate the model
+            acc, domain_dict, num_samples = get_accuracy(
+                model,
+                data_loader=test_data_loader,
+                dataset_name=cfg.CORRUPTION.DATASET,
+                domain_name=domain_name,
+                setting='mixed_domains',
                 domain_dict=domain_dict,
                 print_every=cfg.PRINT_EVERY,
                 device=device

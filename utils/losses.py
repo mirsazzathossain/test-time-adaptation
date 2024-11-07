@@ -198,7 +198,7 @@ class RBF(nn.Module):
         L2_distances = torch.cdist(X, X) ** 2
         return torch.exp(
             -L2_distances[None, ...]
-            / (self.get_bandwidth(L2_distances) * self.bandwidth_multipliers)[
+            / (self.get_bandwidth(L2_distances) * self.bandwidth_multipliers.to(X.device))[
                 :, None, None
             ]
         ).sum(dim=0)

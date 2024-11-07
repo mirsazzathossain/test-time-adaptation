@@ -21,7 +21,6 @@ from utils.misc import (
     compute_prototypes,
     confidence_condition,
     ema_update_model,
-    ghajini,
     init_pqs,
     plot_tsne,
     pop_min_from_pqs,
@@ -138,7 +137,6 @@ class Ours(TTAMethod):
 
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
-        self.prev_pri
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
@@ -295,7 +293,7 @@ class Ours(TTAMethod):
             mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
         else:
             self.ghajini = MMDLoss()
-            mem_loss = self.ghajini(self.feature_bank, features_t2)
+            mem_loss = self.ghajini(self.feature_bank.detach(), features_t2)
 
         self.feature_bank = features_t2
 
