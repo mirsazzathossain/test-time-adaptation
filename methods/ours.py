@@ -285,14 +285,19 @@ class Ours(TTAMethod):
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2_proto
+            print(f"Contrastive loss with prototypes: {cntrs_t2_proto}")
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 -= 10 * mse_t2
+            loss_t2 += 10 * mse_t2
+            print(f"MSE loss with prototypes: {mse_t2}")
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += 100 * kld_t2
+            print(f"KLD loss with prototypes: {kld_t2}")
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
+            print(f"Contrastive loss: {cntrs_t2}")
         if "im_loss" in self.cfg.Ours.LOSSES:
             loss_t2 += 0.5 * im_loss
+            print(f"InfoMax loss: {im_loss}")
 
         loss_differential = differential_loss(
             outputs_s,
@@ -303,6 +308,7 @@ class Ours(TTAMethod):
         )
         if "differ_loss" in self.cfg.Ours.LOSSES:
             loss_stu += loss_differential
+            print(f"Differential loss: {loss_differential}")
 
         features_s = self.backbone_s(x)
         if self.c == 0:
@@ -314,7 +320,9 @@ class Ours(TTAMethod):
         self.feature_bank = features_s
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
+            print(f"Student loss: {loss_stu}")
             loss_stu += mem_loss
+            print(f"Memory loss: {mem_loss}")
 
         return outputs, loss_stu, loss_t2
 
