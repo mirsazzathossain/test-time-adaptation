@@ -212,7 +212,18 @@ class Ours(TTAMethod):
 
         # get the outputs from the models
         outputs_s = self.model_s(x)
-        outputs_t1 = self.model_t1(x)
+
+        anchor_prob = torch.nn.functional.softmax(outputs_s, dim=1).max(1)[0]
+
+        ema_outputs = []
+        if anchor_prob.mean(0) < 0.9:
+            for _ in range(32):
+                outputs_ = self.model_t1(self.tta_transform(x)).detach()
+                ema_outputs.append(outputs_)
+            outputs_t1 = torch.stack(ema_outputs).mean(0)
+        else:
+            outputs_t1 = self.model_t1(x)
+
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
 
