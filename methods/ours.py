@@ -276,11 +276,7 @@ class Ours(TTAMethod):
         mse_t2 = F.mse_loss(
             features_t2, prototypes[labels_t1].detach(), reduction="mean"
         )
-        kld_t2 = torch.nn.KLDivLoss(reduction="batchmean")(
-            torch.log_softmax(outputs_t2, dim=1),
-            torch.log_softmax(outputs_t1, dim=1).detach(),
-        )
-
+        kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
@@ -296,7 +292,7 @@ class Ours(TTAMethod):
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += 10 * im_loss
+            loss_t2 += im_loss
 
         loss_differential = differential_loss(
             outputs_s,
