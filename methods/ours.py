@@ -290,9 +290,9 @@ class Ours(TTAMethod):
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += 100 * kld_t2
         if "contr_t2" in self.cfg.Ours.LOSSES:
-            loss_t2 += 0.5 * cntrs_t2
+            loss_t2 += cntrs_t2
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += 0.5 * im_loss  # -
+            loss_t2 -= 0.5 * im_loss
 
         loss_differential = differential_loss(
             outputs_s,
