@@ -162,18 +162,6 @@ class Ours(TTAMethod):
         # keep a feature bank
         self.feature_bank = None
 
-        self.models.append(self.model_t1)
-        self.models.append(self.backbone_t1)
-        self.models.append(self.model_t2)
-        self.models.append(self.backbone_t2)
-        self.models.append(self.model_s)
-        self.optimizers.append(self.optimizer_t1)
-        self.optimizers.append(self.optimizer_backbone_t1)
-        self.optimizers.append(self.optimizer_t2)
-        self.optimizers.append(self.optimizer_backbone_t2)
-        self.optimizers.append(self.optimizer_s)
-        self.model_states, self.optimizer_states = self.copy_model_and_optimizer()
-
     def prototype_updates(self, pqs, num_classes, features, entropies, labels):
         """
         Update the priority queues and compute the prototypes for the current batch.
@@ -288,7 +276,11 @@ class Ours(TTAMethod):
         mse_t2 = F.mse_loss(
             features_t2, prototypes[labels_t1].detach(), reduction="mean"
         )
-        kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
+        kld_t2 = torch.nn.KLDivLoss(reduction="batchmean")(
+            torch.log_softmax(features_t2, dim=1),
+            torch.log_softmax(prototypes[labels_t1], dim=1).detach(),
+        )
+
         cntrs_t2 = self.contrastive_loss(
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
@@ -300,7 +292,7 @@ class Ours(TTAMethod):
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += 10 * mse_t2
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += 100 * kld_t2
+            loss_t2 += kld_t2
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
         if "im_loss" in self.cfg.Ours.LOSSES:
