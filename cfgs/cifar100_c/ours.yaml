@@ -19,6 +19,8 @@ CORRUPTION:
     - snow
     - frost
     - fog
+    - brightness
+    - contrast
     - gaussian_noise
     - shot_noise
     - impulse_noise
@@ -29,6 +31,8 @@ CORRUPTION:
     - snow
     - frost
     - fog
+    - brightness
+    - contrast
 OPTIM:
   METHOD: Adam
   STEPS: 1
