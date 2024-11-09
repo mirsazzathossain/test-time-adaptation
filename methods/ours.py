@@ -277,8 +277,8 @@ class Ours(TTAMethod):
             features_t2, prototypes[labels_t1].detach(), reduction="mean"
         )
         kld_t2 = torch.nn.KLDivLoss(reduction="batchmean")(
-            torch.log_softmax(features_t2, dim=1),
-            torch.log_softmax(prototypes[labels_t1], dim=1).detach(),
+            torch.log_softmax(outputs_t2, dim=1),
+            torch.log_softmax(outputs_t1, dim=1).detach(),
         )
 
         cntrs_t2 = self.contrastive_loss(
