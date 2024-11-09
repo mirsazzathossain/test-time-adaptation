@@ -292,7 +292,7 @@ class Ours(TTAMethod):
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 -= 0.5 * im_loss
+            loss_t2 += 0.5 * im_loss
 
         loss_differential = differential_loss(
             outputs_s,
@@ -302,7 +302,7 @@ class Ours(TTAMethod):
             self.rms_norm,
         )
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += loss_differential  # -
+            loss_stu -= loss_differential
 
         features_s = self.backbone_s(x)
         if self.c == 0:
