@@ -213,7 +213,8 @@ class Ours(TTAMethod):
         # get the outputs from the models
         outputs_s = self.model_s(x)
 
-        anchor_prob = torch.nn.functional.softmax(outputs_s, dim=1).max(1)[0]
+        outputs_anchor = self.model(x)
+        anchor_prob = torch.nn.functional.softmax(outputs_anchor, dim=1).max(1)[0]
 
         ema_outputs = []
         if anchor_prob.mean(0) < 0.9:
