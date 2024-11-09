@@ -154,6 +154,11 @@ class Ours(TTAMethod):
             }
         )
 
+        # split student model
+        self.backbone_s, _ = split_up_model(
+            self.model_s, self.arch_name, self.dataset_name
+        )
+
         # keep a feature bank
         self.feature_bank = None
 
@@ -311,16 +316,17 @@ class Ours(TTAMethod):
         if "differ_loss" in self.cfg.Ours.LOSSES:
             loss_stu += loss_differential
 
+        features_s = self.backbone_s(x)
         if self.c == 0:
             mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
         else:
             self.ghajini = MMDLoss()
-            mem_loss = self.ghajini(self.feature_bank.detach(), features_t2)
+            mem_loss = self.ghajini(self.feature_bank.detach(), features_s)
 
-        self.feature_bank = features_t2
+        self.feature_bank = features_s
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += mem_loss
+            loss_stu += mem_loss
 
         return outputs, loss_stu, loss_t2
 
