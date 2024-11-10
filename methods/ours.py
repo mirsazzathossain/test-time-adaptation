@@ -190,29 +190,18 @@ class Ours(TTAMethod):
 
         for i in range(self.num_classes):
             label_i_indices = torch.where(labels == i)[0]
-            print(label_i_indices)
 
             entropy_t1_i = entropy_t1[label_i_indices]
             entropy_t2_i = entropy_t2[label_i_indices]
             features_i = features[label_i_indices]
-            print(entropy_t1_i.size())
-            print(entropy_t2_i.size())
-            # select the top-k features based on entropy threshold
-            selected_filter_ids = torch.logical_and(
-                entropy_t1_i > 0.5, entropy_t2_i > 0.5
-            )
 
+            selected_filter_ids = torch.where(
+                entropy_t1_i < 0.4 & entropy_t2_i > 0.4
+            )[0]
+
+            print(entropy_t1_i)
+            print(entropy_t2_i)
             print(selected_filter_ids)
-            selected_filter_ids = [i.item() for i in selected_filter_ids]
-            print(selected_filter_ids)
-            print(entropy_t1_i.size())
-            print(entropy_t2_i.size())
-            print(features_i.size())
-
-            print(features_i[selected_filter_ids].size())
-            print(entropy_t1_i[selected_filter_ids].size())
-
-            print(pqs[i])
 
             pqs[i].add(
                 features_i[selected_filter_ids],
