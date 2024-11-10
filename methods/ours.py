@@ -183,7 +183,7 @@ class Ours(TTAMethod):
         features = features.detach()
         entropy_t1 = entropy_t1.detach()
 
-        for i, pq in enumerate(pqs):
+        for i in range(num_classes):
             label_i_indices = torch.where(labels == i)[0]
 
             entropy_t1_i = entropy_t1[label_i_indices]
@@ -197,7 +197,7 @@ class Ours(TTAMethod):
                 entropy_t1_i[selected_filter_ids],
             )
 
-            if pq.is_empty() and label_i_indices.size(0) > 0:
+            if pqs[i].is_empty() and label_i_indices.size(0) > 0:
                 _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
                 top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
                 pqs[i].add(
