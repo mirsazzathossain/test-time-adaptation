@@ -199,6 +199,7 @@ class Ours(TTAMethod):
             )
 
             selected_filter_ids = (idx.item() for idx in selected_filter_ids)
+            print(selected_filter_ids)
             print(entropy_t1_i.size())
             print(entropy_t2_i.size())
             print(features_i.size())
