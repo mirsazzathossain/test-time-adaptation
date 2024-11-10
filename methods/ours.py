@@ -23,6 +23,7 @@ from utils.misc import (
     init_pqs,
     plot_tsne,
     pop_min_from_pqs,
+    print_queue_entropies,
     update_pqs,
 )
 from utils.registry import ADAPTATION_REGISTRY
@@ -278,9 +279,8 @@ class Ours(TTAMethod):
             labels_t1,
             entropy_t2,
         )
-        for i, pq in enumerate(self.priority_queues):
-            print(f"Class {i}: ", end="")
-            pq.print_queue()
+        if self.c % 1 == 0:
+            print_queue_entropies(self.priority_queues, self.num_classes)
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)

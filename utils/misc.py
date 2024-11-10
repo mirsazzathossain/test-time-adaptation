@@ -64,9 +64,6 @@ class PriorityQueue:
     def is_empty(self):
         return len(self.queue) == 0
     
-    def print_queue(self):
-        print(self.queue)
-    
 
 def init_pqs(num_classes, max_size):
     pqs = defaultdict(lambda: PriorityQueue(max_size))
@@ -172,3 +169,8 @@ def get_matching_and_different_ids(out_1, out_2):
     different_ids = torch.where(pred_1 != pred_2).nonzero(as_tuple=True)[0]
 
     return matching_ids, different_ids
+
+def print_queue_entropies(priority_queues, num_classes):
+    for class_label in range(num_classes):
+        entropies = priority_queues[class_label].get_entropies()
+        print(f"Class {class_label}: Entropies = {entropies}")
