@@ -182,7 +182,11 @@ class Ours(TTAMethod):
         features = features.detach()
         entropy_t1 = entropy_t1.detach()
 
-        for i, pq in enumerate(pqs):
+        for i in range(num_classes):
+            pq = pqs[i]
+
+            print(pqs.dtype)
+            print(pq)
             label_i_indices = torch.where(labels == i)[0]
 
             entropy_t1_i = entropy_t1[label_i_indices]
@@ -266,7 +270,6 @@ class Ours(TTAMethod):
         entropy_s = self.ent(outputs_s)
         entropy_t1 = self.ent(outputs_t1)
         entropy_t2 = self.ent(outputs_t2)
-
 
         features_t1 = self.backbone_t1(x)
         labels_t1 = torch.argmax(outputs_t1, dim=1)
