@@ -189,7 +189,7 @@ class Ours(TTAMethod):
 
         for i in range(num_classes):
             label_i_indices = torch.where(labels == i)[0]
-            print(label_i_indices.size())
+            print(label_i_indices)
 
             entropy_t1_i = entropy_t1[label_i_indices]
             entropy_t2_i = entropy_t2[label_i_indices]
@@ -197,7 +197,7 @@ class Ours(TTAMethod):
             _, selected_filter_ids, _, _ = confidence_condition(
                 entropy_t1_i, entropy_t2_i, entropy_threshold=0.4
             )
-            print(selected_filter_ids.size())
+            print(selected_filter_ids)
             print(entropy_t1_i.size())
             print(entropy_t2_i.size())
             print(features_i.size())
