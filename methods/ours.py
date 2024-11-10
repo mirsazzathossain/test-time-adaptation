@@ -185,10 +185,11 @@ class Ours(TTAMethod):
 
         if self.c % 1 == 0:
             print_queue_entropies(self.priority_queues, self.num_classes)
-        print("*"*50)
+        print("*" * 50)
 
         for i in range(num_classes):
             label_i_indices = torch.where(labels == i)[0]
+            print(label_i_indices.size())
 
             entropy_t1_i = entropy_t1[label_i_indices]
             entropy_t2_i = entropy_t2[label_i_indices]
@@ -196,18 +197,23 @@ class Ours(TTAMethod):
             _, selected_filter_ids, _, _ = confidence_condition(
                 entropy_t1_i, entropy_t2_i, entropy_threshold=0.4
             )
+            print(selected_filter_ids.size())
+            print(entropy_t1_i.size())
+            print(entropy_t2_i.size())
+            print(features_i.size())
+
             pqs[i].add(
                 features_i[selected_filter_ids],
                 entropy_t1_i[selected_filter_ids],
             )
 
-            if pqs[i].is_empty() and label_i_indices.size(0) > 0:
-                _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
-                top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
-                pqs[i].add(
-                    features_i[top_k_indices],
-                    entropy_t1_i[top_k_indices],
-                )
+            # if pqs[i].is_empty() and label_i_indices.size(0) > 0:
+            #     _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
+            #     top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
+            #     pqs[i].add(
+            #         features_i[top_k_indices],
+            #         entropy_t1_i[top_k_indices],
+            #     )
 
         if self.c % 1 == 0:
             print_queue_entropies(self.priority_queues, self.num_classes)
