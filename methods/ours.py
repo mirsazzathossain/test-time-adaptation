@@ -254,14 +254,17 @@ class Ours(TTAMethod):
         # student model loss
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
+            print("using ce_s_t1")
             loss_self_training += 0.5 * self.symmetric_cross_entropy(
                 outputs_s, outputs_t1.detach()
             )
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
+            print("using ce_s_t2")
             loss_self_training += 0.5 * self.symmetric_cross_entropy(
                 outputs_s, outputs_t2.detach()
             )
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
+            print("using ce_s_aug_t1")
             loss_self_training += 0.5 * self.symmetric_cross_entropy(
                 outputs_stu_aug, outputs_t1.detach()
             )
@@ -302,14 +305,19 @@ class Ours(TTAMethod):
 
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
+            print("using contr_t2_proto")
             loss_t2 += cntrs_t2_proto
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
+            print("using mse_t2_proto")
             loss_t2 += 10 * mse_t2
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
+            print("using kld_t2_proto")
             loss_t2 += 100 * kld_t2
         if "contr_t2" in self.cfg.Ours.LOSSES:
+            print("using contr_t2")
             loss_t2 += cntrs_t2
         if "im_loss" in self.cfg.Ours.LOSSES:
+            print("using im_loss")
             loss_t2 += 0.5 * im_loss
 
         loss_differential = differential_loss(
@@ -320,6 +328,7 @@ class Ours(TTAMethod):
             self.rms_norm,
         )
         if "differ_loss" in self.cfg.Ours.LOSSES:
+            print("using differ_loss")
             loss_stu += loss_differential
 
         features_s = self.backbone_s(x)
@@ -332,6 +341,7 @@ class Ours(TTAMethod):
         self.feature_bank = features_s
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
+            print("using mem_loss")
             loss_stu += mem_loss
 
         return outputs, loss_stu, loss_t2
