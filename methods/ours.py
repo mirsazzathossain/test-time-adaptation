@@ -184,10 +184,6 @@ class Ours(TTAMethod):
         entropy_t1 = entropy_t1.detach()
         entropy_t2 = entropy_t2.detach()
 
-        if self.c % 1 == 0:
-            print_queue_entropies(self.priority_queues, self.num_classes)
-        print("*" * 50)
-
         for i in range(self.num_classes):
             label_i_indices = torch.where(labels == i)[0]
 
