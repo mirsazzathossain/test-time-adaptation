@@ -197,7 +197,8 @@ class Ours(TTAMethod):
             _, selected_filter_ids, _, _ = confidence_condition(
                 entropy_t1_i, entropy_t2_i, entropy_threshold=0.4
             )
-            print(selected_filter_ids)
+            
+            
             print(entropy_t1_i.size())
             print(entropy_t2_i.size())
             print(features_i.size())
