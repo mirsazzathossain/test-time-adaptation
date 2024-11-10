@@ -185,7 +185,7 @@ class Ours(TTAMethod):
         for i in range(num_classes):
             pq = pqs[i]
 
-            print(pqs.dtype)
+            print(pqs)
             print(pq)
             label_i_indices = torch.where(labels == i)[0]
 
