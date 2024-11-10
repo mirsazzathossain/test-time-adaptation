@@ -356,20 +356,6 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        # Stochastic restore
-        with torch.no_grad():
-            self.rst = 0.01
-            if self.rst > 0.0:
-                for nm, m in self.model_s.named_modules():
-                    for npp, p in m.named_parameters():
-                        if npp in ["weight", "bias"] and p.requires_grad:
-                            mask = (
-                                (torch.rand(p.shape) < self.rst).float().to(self.device)
-                            )
-                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-                                1.0 - mask
-                            )
-
         self.c = self.c + 1
         return outputs
 
