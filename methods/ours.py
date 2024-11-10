@@ -181,7 +181,6 @@ class Ours(TTAMethod):
         # detach the features and entropies
         features = features.detach()
         entropy_t1 = entropy_t1.detach()
-        print(entropy_t1)
 
         for i, pq in enumerate(pqs):
             label_i_indices = torch.where(labels == i)[0]
