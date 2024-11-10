@@ -162,7 +162,9 @@ class Ours(TTAMethod):
         # keep a feature bank
         self.feature_bank = None
 
-    def prototype_updates(self, pqs, num_classes, features, entropies, labels):
+    def prototype_updates(
+        self, pqs, num_classes, features, entropy_t1, labels, entropy_t2
+    ):
         """
         Update the priority queues and compute the prototypes for the current batch.
 
@@ -178,9 +180,29 @@ class Ours(TTAMethod):
         """
         # detach the features and entropies
         features = features.detach()
-        entropies = entropies.detach()
+        entropy_t1 = entropy_t1.detach()
 
-        update_pqs(pqs, features, entropies, labels)
+        for i, pq in enumerate(pqs):
+            label_i_indices = torch.where(labels == i)[0]
+
+            entropy_t1_i = entropy_t1[label_i_indices]
+            entropy_t2_i = entropy_t2[label_i_indices]
+            features_i = features[label_i_indices]
+            _, selected_filter_ids, _, _ = confidence_condition(
+                entropy_t1_i, entropy_t2_i, entropy_threshold=0.4
+            )
+            pq.add(
+                features_i[selected_filter_ids],
+                entropy_t1_i[selected_filter_ids],
+            )
+
+            if pq.is_empty() and label_i_indices.size(0) > 0:
+                _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
+                top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
+                pq.add(
+                    features_i[top_k_indices],
+                    entropy_t1_i[top_k_indices],
+                )
 
         # pop the minimum element from the priority queues every 5 batches
         if self.c % 5 == 0:
@@ -243,27 +265,19 @@ class Ours(TTAMethod):
         # calculate the entropy of the outputs
         entropy_s = self.ent(outputs_s)
         entropy_t1 = self.ent(outputs_t1)
-        entropy_ema_t2 = self.ent(outputs_t2)
+        entropy_t2 = self.ent(outputs_t2)
 
-        # apply filtering for feature selection
-        filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
-            entropy_t1, entropy_ema_t2, entropy_threshold=0.4
-        )
-        selected_filter_ids = filter_ids_2
 
-        # select prototypes from T1 model
         features_t1 = self.backbone_t1(x)
-        selected_features_t1 = features_t1[selected_filter_ids]
-        selected_entropy_t1 = entropy_t1[selected_filter_ids]
         labels_t1 = torch.argmax(outputs_t1, dim=1)
-        selected_labels_t1 = labels_t1[selected_filter_ids]
 
         prototypes = self.prototype_updates(
             self.priority_queues,
             self.num_classes,
-            selected_features_t1,
-            selected_entropy_t1,
-            selected_labels_t1,
+            features_t1,
+            entropy_t1,
+            labels_t1,
+            entropy_t2,
         )
 
         # calculate the loss for the T2 model
