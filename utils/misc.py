@@ -64,6 +64,9 @@ class PriorityQueue:
     def is_empty(self):
         return len(self.queue) == 0
     
+    def print_queue(self):
+        print(self.queue)
+    
 
 def init_pqs(num_classes, max_size):
     pqs = defaultdict(lambda: PriorityQueue(max_size))

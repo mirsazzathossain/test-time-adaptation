@@ -279,6 +279,8 @@ class Ours(TTAMethod):
             labels_t1,
             entropy_t2,
         )
+        for i, pq in enumerate(self.priority_queues):
+            print(f"Class {i}: {pq.size()}")
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
