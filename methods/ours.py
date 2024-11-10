@@ -182,6 +182,7 @@ class Ours(TTAMethod):
         # detach the features and entropies
         features = features.detach()
         entropy_t1 = entropy_t1.detach()
+        entropy_t2 = entropy_t2.detach()
 
         if self.c % 1 == 0:
             print_queue_entropies(self.priority_queues, self.num_classes)
@@ -196,9 +197,10 @@ class Ours(TTAMethod):
             features_i = features[label_i_indices]
             print(entropy_t1_i.size())
             print(entropy_t2_i.size())
+            # select the top-k features based on entropy threshold
             selected_filter_ids = torch.where(
-                (entropy_t1_i < 0.4) & (entropy_t2_i > 0.4)
-            )
+                entropy_t1_i < 0.5 and entropy_t2_i > 0.5
+            )[0]
             print(selected_filter_ids)
             selected_filter_ids = [i.item() for i in selected_filter_ids]
             print(selected_filter_ids)
