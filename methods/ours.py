@@ -198,9 +198,10 @@ class Ours(TTAMethod):
             print(entropy_t1_i.size())
             print(entropy_t2_i.size())
             # select the top-k features based on entropy threshold
-            selected_filter_ids = torch.where(entropy_t1_i < 0.5 & entropy_t2_i > 0.5)[
-                0
-            ]
+            selected_filter_ids = torch.logical_and(
+                entropy_t1_i > 0.5, entropy_t2_i > 0.5
+            )
+
             print(selected_filter_ids)
             selected_filter_ids = [i.item() for i in selected_filter_ids]
             print(selected_filter_ids)
