@@ -187,7 +187,7 @@ class Ours(TTAMethod):
             print_queue_entropies(self.priority_queues, self.num_classes)
         print("*" * 50)
 
-        for i in range(num_classes):
+        for i in range(self.num_classes):
             label_i_indices = torch.where(labels == i)[0]
             print(label_i_indices)
 
@@ -201,6 +201,11 @@ class Ours(TTAMethod):
             print(entropy_t1_i.size())
             print(entropy_t2_i.size())
             print(features_i.size())
+
+            print(features_i[selected_filter_ids].size())
+            print(entropy_t1_i[selected_filter_ids].size())
+
+            print(pqs[i])
 
             pqs[i].add(
                 features_i[selected_filter_ids],
