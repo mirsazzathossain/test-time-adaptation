@@ -200,8 +200,8 @@ class Ours(TTAMethod):
 
             for j in range(selected_indices.size(0)):
                 pqs[i].add(
-                    features_i[selected_indices[j]].unsqueeze(0),
-                    entropy_t1_i[selected_indices[j]].unsqueeze(0),
+                    features_i[selected_indices[j]],
+                    entropy_t1_i[selected_indices[j]],
                 )
 
             # if pqs[i].is_empty() and label_i_indices.size(0) > 0:
