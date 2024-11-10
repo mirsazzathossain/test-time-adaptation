@@ -194,15 +194,14 @@ class Ours(TTAMethod):
             entropy_t1_i = entropy_t1[label_i_indices]
             entropy_t2_i = entropy_t2[label_i_indices]
             features_i = features[label_i_indices]
-            selected_indices = torch.where((entropy_t1_i < 0.4) & (entropy_t2_i > 0.4))[0]
-            
-            print(entropy_t1_i)
-            print(entropy_t2_i)
-            print(selected_indices)
-            if selected_indices.size(0) > 0:
+            selected_indices = torch.where((entropy_t1_i < 0.4) & (entropy_t2_i > 0.4))[
+                0
+            ]
+
+            for j in range(selected_indices.size(0)):
                 pqs[i].add(
-                    features_i[selected_indices],
-                    entropy_t1_i[selected_indices],
+                    features_i[selected_indices[j]].unsqueeze(0),
+                    entropy_t1_i[selected_indices[j]].unsqueeze(0),
                 )
 
             # if pqs[i].is_empty() and label_i_indices.size(0) > 0:
