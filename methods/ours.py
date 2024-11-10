@@ -204,13 +204,14 @@ class Ours(TTAMethod):
                     entropy_t1_i[selected_indices[j]],
                 )
 
-            # if pqs[i].is_empty() and label_i_indices.size(0) > 0:
-            #     _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
-            #     top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
-            #     pqs[i].add(
-            #         features_i[top_k_indices],
-            #         entropy_t1_i[top_k_indices],
-            #     )
+            if pqs[i].is_empty() and label_i_indices.size(0) > 0:
+                _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
+                top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
+                for j in range(top_k_indices.size(0)):
+                    pqs[i].add(
+                        features_i[top_k_indices[j]],
+                        entropy_t1_i[top_k_indices[j]],
+                    )
 
         if self.c % 1 == 0:
             print_queue_entropies(self.priority_queues, self.num_classes)
