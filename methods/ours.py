@@ -209,9 +209,6 @@ class Ours(TTAMethod):
                         entropy_t1_i[top_k_indices[j]],
                     )
 
-        if self.c % 1 == 0:
-            print_queue_entropies(self.priority_queues, self.num_classes)
-
         # pop the minimum element from the priority queues every 5 batches
         if self.c % 5 == 0:
             _ = pop_min_from_pqs(pqs, num_classes)
