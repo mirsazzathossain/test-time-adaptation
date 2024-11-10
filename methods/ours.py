@@ -183,6 +183,10 @@ class Ours(TTAMethod):
         features = features.detach()
         entropy_t1 = entropy_t1.detach()
 
+        if self.c % 1 == 0:
+            print_queue_entropies(self.priority_queues, self.num_classes)
+        print("*"*50)
+
         for i in range(num_classes):
             label_i_indices = torch.where(labels == i)[0]
 
@@ -204,6 +208,9 @@ class Ours(TTAMethod):
                     features_i[top_k_indices],
                     entropy_t1_i[top_k_indices],
                 )
+
+        if self.c % 1 == 0:
+            print_queue_entropies(self.priority_queues, self.num_classes)
 
         # pop the minimum element from the priority queues every 5 batches
         if self.c % 5 == 0:
@@ -279,8 +286,6 @@ class Ours(TTAMethod):
             labels_t1,
             entropy_t2,
         )
-        if self.c % 1 == 0:
-            print_queue_entropies(self.priority_queues, self.num_classes)
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
