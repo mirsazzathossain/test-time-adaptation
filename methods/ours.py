@@ -198,8 +198,9 @@ class Ours(TTAMethod):
                 entropy_t1_i, entropy_t2_i, entropy_threshold=0.4
             )
 
-            selected_filter_ids = (idx.item() for idx in selected_filter_ids)
-            print(selected_filter_ids)
+            selected_filter_ids = [
+                label_i_indices[i].item() for i in selected_filter_ids
+            ]
             print(entropy_t1_i.size())
             print(entropy_t2_i.size())
             print(features_i.size())
