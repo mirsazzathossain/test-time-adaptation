@@ -377,8 +377,10 @@ class Ours(TTAMethod):
             print(f"Number of empty queues: {self.is_pqs_full()}")
 
         # calculate the loss for the T2 model
-        features_t2 = self.backbone_t2(x)
-        features_aug_t2 = self.backbone_t2(x_aug)
+        # features_t2 = self.backbone_t2(x)
+        # features_aug_t2 = self.backbone_t2(x_aug)
+        features_t2 = self.backbone_s(x)
+        features_aug_t2 = self.backbone_s(x_aug)
 
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
@@ -412,7 +414,7 @@ class Ours(TTAMethod):
         loss_differential = differential_loss(
             outputs_s,
             outputs_t1.detach(),
-            outputs_t2.detach(),
+            outputs_s,
             self.lamda_,
             self.rms_norm,
         )
@@ -442,7 +444,7 @@ class Ours(TTAMethod):
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
 
-        return outputs, loss_stu, loss_t2
+        return outputs, loss_stu + loss_t2
 
     @torch.enable_grad()
     def forward_and_adapt(self, x, y=None):
@@ -464,15 +466,15 @@ class Ours(TTAMethod):
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss_stu, loss_t2 = self.loss_calculation(x, y)
+                outputs, loss_stu = self.loss_calculation(x, y)
 
                 self.optimizer_s.zero_grad()
                 loss_stu.backward()
                 self.optimizer_s.step()
 
-                self.optimizer_backbone_t2.zero_grad()
-                loss_t2.backward()
-                self.optimizer_backbone_t2.step()
+                # self.optimizer_backbone_t2.zero_grad()
+                # loss_t2.backward()
+                # self.optimizer_backbone_t2.step()
 
         self.model_t1 = ema_update_model(
             model_to_update=self.model_t1,
