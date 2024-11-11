@@ -211,7 +211,7 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        if self.c % 5 == 0:
+        if self.c % 50 == 0:
             _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
@@ -219,7 +219,7 @@ class Ours(TTAMethod):
             pqs,
             num_classes,
             feature_dim=features.shape[1],
-            device=features.device,
+            device="cuda",
         )
 
         return prototypes
@@ -260,7 +260,7 @@ class Ours(TTAMethod):
 
         alpha = 0.5
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1)
+        outputs = torch.nn.functional.softmax(outputs_t2, dim=1)
 
         wandb.log(
             {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
