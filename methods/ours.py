@@ -282,26 +282,44 @@ class Ours(TTAMethod):
         comb_t1_s = torch.nn.functional.softmax(outputs_t1 + outputs_s, dim=1)
         comb_t2_s = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
+        logits_t1 = torch.nn.functional.softmax(outputs_t1, dim=1)
+        logits_t2 = torch.nn.functional.softmax(outputs_t2, dim=1)
+        logits_s = torch.nn.functional.softmax(outputs_s, dim=1)
+
+        correct_t1 = torch.argmax(logits_t1, dim=1) == y
+        correct_t2 = torch.argmax(logits_t2, dim=1) == y
+        correct_s = torch.argmax(logits_s, dim=1) == y
+        correct_comb_t1_t2 = torch.argmax(comb_t1_t2, dim=1) == y
+        correct_comb_t1_t2_stu = torch.argmax(comb_t1_t2_stu, dim=1) == y
+        correct_comb_t1_s = torch.argmax(comb_t1_s, dim=1) == y
+        correct_comb_t2_s = torch.argmax(comb_t2_s, dim=1) == y
+
+        total_correct_t1 = correct_t1.sum()
+        total_correct_t2 = correct_t2.sum()
+        total_correct_s = correct_s.sum()
+        total_correct_comb_t1_t2 = correct_comb_t1_t2.sum()
+        total_correct_comb_t1_t2_stu = correct_comb_t1_t2_stu.sum()
+        total_correct_comb_t1_s = correct_comb_t1_s.sum()
+        total_correct_comb_t2_s = correct_comb_t2_s.sum()
+
+        error_t1 = 1 - total_correct_t1 / x.size(0)
+        error_t2 = 1 - total_correct_t2 / x.size(0)
+        error_s = 1 - total_correct_s / x.size(0)
+        error_comb_t1_t2 = 1 - total_correct_comb_t1_t2 / x.size(0)
+        error_comb_t1_t2_stu = 1 - total_correct_comb_t1_t2_stu / x.size(0)
+        error_comb_t1_s = 1 - total_correct_comb_t1_s / x.size(0)
+        error_comb_t2_s = 1 - total_correct_comb_t2_s / x.size(0)
+
         # actual accuracy of three models
         wandb.log(
             {
-                "acc_s": (torch.nn.functional.softmax(outputs_s, dim=1).argmax(1) == y)
-                .float()
-                .mean(0),
-                "acc_t1": (
-                    torch.nn.functional.softmax(outputs_t1, dim=1).argmax(1) == y
-                )
-                .float()
-                .mean(0),
-                "acc_t2": (
-                    torch.nn.functional.softmax(outputs_t2, dim=1).argmax(1) == y
-                )
-                .float()
-                .mean(0),
-                "acc_comb_t1_t2": (comb_t1_t2.argmax(1) == y).float().mean(0),
-                "acc_comb_t1_t2_stu": (comb_t1_t2_stu.argmax(1) == y).float().mean(0),
-                "acc_comb_t1_s": (comb_t1_s.argmax(1) == y).float().mean(0),
-                "acc_comb_t2_s": (comb_t2_s.argmax(1) == y).float().mean(0),
+                "error_t1": error_t1,
+                "error_t2": error_t2,
+                "error_s": error_s,
+                "error_comb_t1_t2": error_comb_t1_t2,
+                "error_comb_t1_t2_stu": error_comb_t1_t2_stu,
+                "error_comb_t1_s": error_comb_t1_s,
+                "error_comb_t2_s": error_comb_t2_s,
             }
         )
 
