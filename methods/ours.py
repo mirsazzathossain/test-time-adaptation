@@ -167,6 +167,23 @@ class Ours(TTAMethod):
             }
         )
 
+         #RMS Normalization
+        self.rms_norm = RMSNorm(num_channels)
+        self.lamda = nn.Parameter(torch.zeros(1, dtype=torch.float32).normal_(mean=0,std=0.1))
+
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.rms_norm.parameters(),
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            },
+            {
+                "params": self.lamda,
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+
+
+
         # keep a feature bank
         self.feature_bank = None
 
