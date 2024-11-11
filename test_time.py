@@ -1,6 +1,7 @@
 import logging
 import os
 import time
+from datetime import datetime, timedelta
 
 import numpy as np
 import torch
@@ -32,7 +33,16 @@ def evaluate(description):
     assert cfg.SETTING in valid_settings, f"The setting '{cfg.SETTING}' is not supported! Choose from: {valid_settings}"
 
     # setup wandb logging
-    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET + "-" + time.strftime("%y%m%d-%H%M%S")
+    wandb.run.name = cfg.MODEL.ADAPTATION + "-" + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
+
+    information = "output_t1"
+    wandb.run.name += "-" + information
+
+    # add current bangladesh time to the run name
+    now = datetime.now()
+    new_time = now + timedelta(hours=11)
+    wandb.run.name += "-" + new_time.strftime("%Y-%m-%d-%H-%M-%S")
+
     wandb.config.update(cfg)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
