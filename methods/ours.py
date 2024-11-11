@@ -340,15 +340,14 @@ class Ours(TTAMethod):
 
         self.feature_bank = features_s
 
-        # add l2-sp loss so that the student model does not diverge too much from source model
-        pretrained_weights = self.model_states[0]
-        loss_l2_sp = L2SPLoss(pretrained_weights)
-        loss_stu += loss_l2_sp(self.model_s)
+        if "l2_sp" in self.cfg.Ours.LOSSES:
+            pretrained_weights = self.model_states[0]
+            loss_l2_sp = L2SPLoss(pretrained_weights)
+            loss_stu += loss_l2_sp(self.model_s)
+
+
         if "mem_loss" in self.cfg.Ours.LOSSES:
             loss_stu += mem_loss
-
-        hubber_loss = nn.HuberLoss()
-        loss_t2 += 10 * hubber_loss(outputs_t2, outputs_t1.detach())
 
         return outputs, loss_stu, loss_t2
 
