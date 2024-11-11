@@ -229,3 +229,14 @@ class L2SPLoss(nn.Module):
         for name, param in model.named_parameters():
             loss += F.mse_loss(param, self.pre_trained_weights[name].to(param.device))
         return loss
+    
+class CenterLoss(nn.Module):
+    def __init__(self, num_classes, feat_dim, device="cuda"):
+        super(CenterLoss, self).__init__()
+        self.centers = nn.Parameter(torch.randn(num_classes, feat_dim).to(device))
+
+    def forward(self, features, labels):
+        batch_size = features.size(0)
+        centers_batch = self.centers[labels]
+        loss = (features - centers_batch).pow(2).sum() / batch_size
+        return loss
