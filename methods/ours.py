@@ -258,7 +258,7 @@ class Ours(TTAMethod):
         # Augmentation-averaged Prediction
         ema_outputs = []
         if anchor_prob.mean(0) < 0.92:
-            for _ in range(self.n_augmentations):
+            for _ in range(32):
                 outputs_ = self.model_t1(self.transform(x)).detach()
                 ema_outputs.append(outputs_)
 
