@@ -128,7 +128,7 @@ class TTAMethod(nn.Module):
 
         else:  # common batch adaptation setting
             for _ in range(self.steps):
-                outputs = self.forward_and_adapt(x)
+                outputs = self.forward_and_adapt(x, y)
 
                 # if specified, reset the model after a certain amount of update steps
                 self.performed_updates += 1
