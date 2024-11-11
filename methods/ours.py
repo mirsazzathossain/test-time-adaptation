@@ -148,7 +148,7 @@ class Ours(TTAMethod):
             nn.ReLU(),
             nn.Linear(self.projection_dim, self.projection_dim),
         ).to(self.device)
-        self.optimizer_backbone_t2.add_param_group(
+        self.optimizer_t2.add_param_group(
             {
                 "params": self.projector.parameters(),
                 "lr": self.optimizer_t2.param_groups[0]["lr"],
@@ -164,7 +164,7 @@ class Ours(TTAMethod):
         self.feature_bank = None
 
     def prototype_updates(
-        self, pqs, num_classes, features, entropy_t1, labels, entropy_t2
+        self, pqs, num_classes, features, entropies, labels, selected_feature_id
     ):
         """
         Update the priority queues and compute the prototypes for the current batch.
@@ -181,33 +181,34 @@ class Ours(TTAMethod):
         """
         # detach the features and entropies
         features = features.detach()
-        entropy_t1 = entropy_t1.detach()
-        entropy_t2 = entropy_t2.detach()
+        entropies = entropies.detach()
 
-        for i in range(self.num_classes):
-            label_i_indices = torch.where(labels == i)[0]
+        update_pqs(
+            pqs,
+            features[selected_feature_id],
+            entropies[selected_feature_id],
+            labels[selected_feature_id],
+        )
 
-            entropy_t1_i = entropy_t1[label_i_indices]
-            entropy_t2_i = entropy_t2[label_i_indices]
-            features_i = features[label_i_indices]
-            selected_indices = torch.where((entropy_t1_i < 0.4) & (entropy_t2_i > 0.4))[
-                0
-            ]
+        for class_label in range(num_classes):
+            if not pqs[class_label].queue:
+                # Get indices for the current class label
+                class_indices = (labels == class_label).nonzero(as_tuple=True)[0]
+                class_features = features[class_indices]
+                class_entropies = entropies[class_indices]
 
-            for j in range(selected_indices.size(0)):
-                pqs[i].add(
-                    features_i[selected_indices[j]],
-                    entropy_t1_i[selected_indices[j]],
+                # Sort by entropy and select the top 5 minimum-entropy features for the class
+                sorted_indices = torch.argsort(class_entropies)
+                min_entropy_indices = (
+                    sorted_indices[:5] if len(sorted_indices) >= 5 else sorted_indices
                 )
 
-            if pqs[i].is_empty() and label_i_indices.size(0) > 0:
-                _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
-                top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
-                for j in range(top_k_indices.size(0)):
-                    pqs[i].add(
-                        features_i[top_k_indices[j]],
-                        entropy_t1_i[top_k_indices[j]],
-                    )
+                selected_features = class_features[min_entropy_indices]
+                selected_entropies = class_entropies[min_entropy_indices]
+
+                # Add selected features and entropies to the priority queue
+                for feature, entropy in zip(selected_features, selected_entropies):
+                    pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
         if self.c % 5 == 0:
@@ -278,13 +279,19 @@ class Ours(TTAMethod):
         features_t1 = self.backbone_t1(x)
         labels_t1 = torch.argmax(outputs_t1, dim=1)
 
+        filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
+            entropy_t1, entropy_t2, entropy_threshold=0.5
+        )
+        selected_filter_ids = filter_ids_2
+
+
         prototypes = self.prototype_updates(
             self.priority_queues,
             self.num_classes,
             features_t1,
             entropy_t1,
-            labels_t1,
-            entropy_t2,
+            labels_t1, 
+            selected_filter_ids,
         )
 
         # calculate the loss for the T2 model
