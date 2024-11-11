@@ -294,6 +294,7 @@ class Ours(TTAMethod):
         correct_comb_t1_s = torch.argmax(comb_t1_s, dim=1) == y
         correct_comb_t2_s = torch.argmax(comb_t2_s, dim=1) == y
 
+        print(correct_t1)
         total_correct_t1 = correct_t1.sum()
         total_correct_t2 = correct_t2.sum()
         total_correct_s = correct_s.sum()
