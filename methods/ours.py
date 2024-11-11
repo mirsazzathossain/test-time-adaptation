@@ -43,7 +43,8 @@ class Ours(TTAMethod):
         self.projection_dim = cfg.CONTRAST.PROJECTION_DIM
         self.m_teacher_momentum = cfg.M_TEACHER.MOMENTUM
         self.final_lr = cfg.OPTIM.LR
-        self.arch_name = cfg.MODEL.ARCH
+        arch_name = cfg.MODEL.ARCH
+        self.arch_name = arch_name
 
         # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
@@ -51,7 +52,6 @@ class Ours(TTAMethod):
         # setup loss functions
         self.symmetric_cross_entropy = SymmetricCrossEntropy()
         self.ent = Entropy()
-        self.ghajini = MMDLoss()
 
         # setup teacher model (T1)
         self.model_t1 = self.copy_model(self.model)
@@ -71,9 +71,9 @@ class Ours(TTAMethod):
         self.backbone_t1, _ = split_up_model(
             self.model_t1, self.arch_name, self.dataset_name
         )
-        # self.optimizer_backbone_t1 = self.setup_optimizer(
-        #     self.backbone_t1.parameters(), 0.01
-        # )
+        self.optimizer_backbone_t1 = self.setup_optimizer(
+            self.backbone_t1.parameters(), 0.01
+        )
 
         # setup teacher model (T2)
         self.model_t2 = self.copy_model(self.model)
@@ -93,9 +93,9 @@ class Ours(TTAMethod):
         self.backbone_t2, _ = split_up_model(
             self.model_t2, self.arch_name, self.dataset_name
         )
-        # self.optimizer_backbone_t2 = self.setup_optimizer(
-        #     self.backbone_t2.parameters(), 0.01
-        # )
+        self.optimizer_backbone_t2 = self.setup_optimizer(
+            self.backbone_t2.parameters(), 0.01
+        )
 
         # setup student model
         self.model_s = self.copy_model(self.model)
@@ -111,11 +111,6 @@ class Ours(TTAMethod):
             self.optimizer_s = self.setup_optimizer(self.params_s, lr)
 
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
-
-          # split student model
-        self.backbone_s, _ = split_up_model(
-            self.model_s, self.arch_name, self.dataset_name
-        )
 
         # setup differential loss
         self.rms_norm = RMSNorm(num_classes, self.device)
@@ -153,106 +148,85 @@ class Ours(TTAMethod):
             nn.ReLU(),
             nn.Linear(self.projection_dim, self.projection_dim),
         ).to(self.device)
-        # self.optimizer_backbone_t2.add_param_group(
-        #     {
-        #         "params": self.projector.parameters(),
-        #         "lr": self.optimizer_t2.param_groups[0]["lr"],
-        #     }
-        # )
-
-        self.optimizer_t2.add_param_group(
+        self.optimizer_backbone_t2.add_param_group(
             {
                 "params": self.projector.parameters(),
-                "lr": self.optimizer_t2.param_groupts[0]["lr"],
+                "lr": self.optimizer_t2.param_groups[0]["lr"],
             }
         )
 
-         #RMS Normalization
-        self.rms_norm = RMSNorm(num_channels)
-        self.lamda = nn.Parameter(torch.zeros(1, dtype=torch.float32).normal_(mean=0,std=0.1))
-
-        self.optimizer_s.add_param_group(
-            {
-                "params": self.rms_norm.parameters(),
-                "lr": self.optimizer_s.param_groups[0]["lr"],
-            },
-            {
-                "params": self.lamda,
-                "lr": self.optimizer_s.param_groups[0]["lr"],
-            }
+        # split student model
+        self.backbone_s, _ = split_up_model(
+            self.model_s, self.arch_name, self.dataset_name
         )
-
-
 
         # keep a feature bank
         self.feature_bank = None
 
-    @torch.enable_grad()
-    def forward_and_adapt(self, x):
+    def prototype_updates(
+        self, pqs, num_classes, features, entropy_t1, labels, entropy_t2
+    ):
         """
-        Forward pass and adaptation for the current batch.
+        Update the priority queues and compute the prototypes for the current batch.
 
         Args:
-            x (Tensor): Input data for the current batch
+            pqs (list): List of priority queues for each class
+            num_classes (int): Number of classes
+            features (Tensor): Extracted features for the current batch
+            entropies (Tensor): Entropy values for the current batch
+            labels (Tensor): Ground truth labels for the current batch
 
         Returns:
-            Tensor: Model predictions
+            Tensor: Prototypes for the current batch
         """
-        if self.mixed_precision and self.device == "cuda":
-            with torch.cuda.amp.autocast():
-                outputs, loss, _ = self.loss_calculation(x)
-            self.scaler.scale(loss).backward()
-            self.scaler.step(self.optimizer)
-            self.scaler.update()
-            self.optimizer.zero_grad()
-        else:
-            with torch.amp.autocast("cuda"):
-                outputs, loss_stu, loss_t2 = self.loss_calculation(x)
+        # detach the features and entropies
+        features = features.detach()
+        entropy_t1 = entropy_t1.detach()
+        entropy_t2 = entropy_t2.detach()
 
-                self.optimizer_s.zero_grad()
-                loss_stu.backward()
-                self.optimizer_s.step()
+        for i in range(self.num_classes):
+            label_i_indices = torch.where(labels == i)[0]
 
-                self.optimizer_t2.zero_grad()
-                loss_t2.backward()
-                self.optimizer_t2.step()
+            entropy_t1_i = entropy_t1[label_i_indices]
+            entropy_t2_i = entropy_t2[label_i_indices]
+            features_i = features[label_i_indices]
+            selected_indices = torch.where((entropy_t1_i < 0.4) & (entropy_t2_i > 0.4))[
+                0
+            ]
 
-        self.model_t1 = ema_update_model(
-            model_to_update=self.model_t1,
-            model_to_merge=self.model_s,
-            momentum=self.m_teacher_momentum,
-            device=self.device,
-            update_all=True,
+            for j in range(selected_indices.size(0)):
+                pqs[i].add(
+                    features_i[selected_indices[j]],
+                    entropy_t1_i[selected_indices[j]],
+                )
+
+            if pqs[i].is_empty() and label_i_indices.size(0) > 0:
+                _, sorted_indices = torch.sort(entropy_t1_i, descending=True)
+                top_k_indices = sorted_indices[: min(5, label_i_indices.size(0))]
+                for j in range(top_k_indices.size(0)):
+                    pqs[i].add(
+                        features_i[top_k_indices[j]],
+                        entropy_t1_i[top_k_indices[j]],
+                    )
+
+        # pop the minimum element from the priority queues every 5 batches
+        if self.c % 5 == 0:
+            _ = pop_min_from_pqs(pqs, num_classes)
+
+        # compute the prototypes for the current batch
+        prototypes = compute_prototypes(
+            pqs,
+            num_classes,
+            feature_dim=features.shape[1],
+            device=features.device,
         )
 
-        with torch.no_grad():
-            self.rst = 0.01
-            if self.rst > 0.0:
-                for nm, m in self.model_s.named_modules():
-                    for npp, p in m.named_parameters():
-                        if npp in ["weight", "bias"] and p.requires_grad:
-                            mask = (
-                                (torch.rand(p.shape) < self.rst).float().to(self.device)
-                            )
-                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-                                1.0 - mask
-                            )
+        # plot the t-SNE visualization of the prototypes
+        # if self.c % 20 == 0 and self.c > 0:
+        #     plot_tsne(pqs, prototypes, num_classes, self.dataset_name)
 
-        self.c = self.c + 1
-        return outputs
+        return prototypes
 
-    @torch.no_grad()
-    def forward_sliding_window(self, x):
-        """
-        Create the prediction for single sample test-time adaptation with a sliding window
-        :param x: The buffered data created with a sliding window
-        :return: Model predictions
-        """
-        imgs_test = x[0]
-        outputs_test = self.model(imgs_test)
-        outputs_ema = self.model_t1(imgs_test)
-        return outputs_test + outputs_ema
-    
     def loss_calculation(self, x):
         """
         Calculate the loss for the current batch.
@@ -272,7 +246,7 @@ class Ours(TTAMethod):
         outputs_s = self.model_s(x)
         outputs_t1 = self.model_t1(x)
         outputs_t2 = self.model_t2(x)
-        outputs_s_aug = self.model_s(x_aug)
+        outputs_stu_aug = self.model_s(x_aug)
 
         # final output
         outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
@@ -292,7 +266,7 @@ class Ours(TTAMethod):
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
             print("using ce_s_aug_t1")
             loss_self_training += 0.5 * self.symmetric_cross_entropy(
-                outputs_s_aug, outputs_t1.detach()
+                outputs_stu_aug, outputs_t1.detach()
             )
         loss_stu = loss_self_training.mean(0)
 
@@ -303,15 +277,6 @@ class Ours(TTAMethod):
 
         features_t1 = self.backbone_t1(x)
         labels_t1 = torch.argmax(outputs_t1, dim=1)
-         # calculate the loss for the T2 model
-        features_t2 = self.backbone_t2(x)
-        features_aug_t2 = self.backbone_t2(x_aug)
-
-         # apply filtering for feature selection
-        filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
-            entropy_t1, entropy_t2, entropy_threshold=0.5
-        )
-        selected_filter_ids = filter_ids_2
 
         prototypes = self.prototype_updates(
             self.priority_queues,
@@ -319,10 +284,13 @@ class Ours(TTAMethod):
             features_t1,
             entropy_t1,
             labels_t1,
-            selected_filter_ids,
+            entropy_t2,
         )
 
-       
+        # calculate the loss for the T2 model
+        features_t2 = self.backbone_t2(x)
+        features_aug_t2 = self.backbone_t2(x_aug)
+
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
         )
@@ -367,7 +335,7 @@ class Ours(TTAMethod):
         if self.c == 0:
             mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
         else:
-            
+            self.ghajini = MMDLoss()
             mem_loss = self.ghajini(self.feature_bank.detach(), features_s)
 
         self.feature_bank = features_s
@@ -378,71 +346,114 @@ class Ours(TTAMethod):
 
         return outputs, loss_stu, loss_t2
 
-
-    def prototype_updates(
-        self, pqs, num_classes, features, entropies, labels, selected_feature_id
-    ):
+    @torch.enable_grad()
+    def forward_and_adapt(self, x):
         """
-        Update the priority queues and compute the prototypes for the current batch.
+        Forward pass and adaptation for the current batch.
 
         Args:
-            pqs (list): List of priority queues for each class
-            num_classes (int): Number of classes
-            features (Tensor): Extracted features for the current batch
-            entropies (Tensor): Entropy values for the current batch
-            labels (Tensor): Ground truth labels for the current batch
+            x (Tensor): Input data for the current batch
 
         Returns:
-            Tensor: Prototypes for the current batch
+            Tensor: Model predictions
         """
-        # detach the features and entropies
-        features = features.detach()
-        entropies = entropies.detach()
+        if self.mixed_precision and self.device == "cuda":
+            with torch.cuda.amp.autocast():
+                outputs, loss, _ = self.loss_calculation(x)
+            self.scaler.scale(loss).backward()
+            self.scaler.step(self.optimizer)
+            self.scaler.update()
+            self.optimizer.zero_grad()
+        else:
+            with torch.amp.autocast("cuda"):
+                outputs, loss_stu, loss_t2 = self.loss_calculation(x)
 
-        update_pqs(
-            pqs,
-            features[selected_feature_id],
-            entropies[selected_feature_id],
-            labels[selected_feature_id],
+                self.optimizer_s.zero_grad()
+                loss_stu.backward()
+                self.optimizer_s.step()
+
+                self.optimizer_backbone_t2.zero_grad()
+                loss_t2.backward()
+                self.optimizer_backbone_t2.step()
+
+        self.model_t1 = ema_update_model(
+            model_to_update=self.model_t1,
+            model_to_merge=self.model_s,
+            momentum=self.m_teacher_momentum,
+            device=self.device,
+            update_all=True,
         )
 
-        for class_label in range(num_classes):
-            if not pqs[class_label].queue:
-                # Get indices for the current class label
-                class_indices = (labels == class_label).nonzero(as_tuple=True)[0]
-                class_features = features[class_indices]
-                class_entropies = entropies[class_indices]
+        with torch.no_grad():
+            self.rst = 0.01
+            if self.rst > 0.0:
+                for nm, m in self.model_s.named_modules():
+                    for npp, p in m.named_parameters():
+                        if npp in ["weight", "bias"] and p.requires_grad:
+                            mask = (
+                                (torch.rand(p.shape) < self.rst).float().to(self.device)
+                            )
+                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                1.0 - mask
+                            )
 
-                # Sort by entropy and select the top 5 minimum-entropy features for the class
-                sorted_indices = torch.argsort(class_entropies)
-                min_entropy_indices = (
-                    sorted_indices[:5] if len(sorted_indices) >= 5 else sorted_indices
-                )
+        self.c = self.c + 1
+        return outputs
 
-                selected_features = class_features[min_entropy_indices]
-                selected_entropies = class_entropies[min_entropy_indices]
+    @torch.no_grad()
+    def forward_sliding_window(self, x):
+        """
+        Create the prediction for single sample test-time adaptation with a sliding window
+        :param x: The buffered data created with a sliding window
+        :return: Model predictions
+        """
+        imgs_test = x[0]
+        outputs_test = self.model(imgs_test)
+        outputs_ema = self.model_t1(imgs_test)
+        return outputs_test + outputs_ema
 
-                # Add selected features and entropies to the priority queue
-                for feature, entropy in zip(selected_features, selected_entropies):
-                    pqs[class_label].add(feature, entropy)
+    def configure_model(self, model=None, bn=None):
+        """
+        Configure model
 
-        # pop the minimum element from the priority queues every 5 batches
-        if self.c % 5 == 0:
-            _ = pop_min_from_pqs(pqs, num_classes)
+        Options:
+        - configure_model() : as same as original
+        - configure_model(model) : configure model custom
+        - configure_model(model, bn=True) : configure model with bn
+        - configure_model(model, bn=False) : configure model without bn
+        """
+        model = model if model is not None else self.model
+        model.eval()
+        model.requires_grad_(False)
 
-        # compute the prototypes for the current batch
-        prototypes = compute_prototypes(
-            pqs,
-            num_classes,
-            feature_dim=features.shape[1],
-            device=features.device,
-        )
+        for m in model.modules():
+            if isinstance(m, nn.BatchNorm2d):
+                if bn is None or bn:
+                    m.requires_grad_(True)
+                    m.track_running_stats = False
+                    m.running_mean = None
+                    m.running_var = None
+            elif isinstance(m, nn.BatchNorm1d):
+                m.train()
+                if bn is None or bn:
+                    m.requires_grad_(True)
+            else:
+                m.requires_grad_(False if bn else True)
 
-        # plot the t-SNE visualization of the prototypes
-        # if self.c % 20 == 0 and self.c > 0:
-        #     plot_tsne(pqs, prototypes, num_classes, self.dataset_name)
+    def copy_model_and_optimizer(self):
+        """Copy the model and optimizer states for resetting after adaptation."""
+        model_states = [deepcopy(model.state_dict()) for model in self.models]
+        optimizer_states = [
+            deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
+        ]
+        return model_states, optimizer_states
 
-        return prototypes
+    def load_model_and_optimizer(self):
+        """Restore the model and optimizer states from copies."""
+        for model, model_state in zip(self.models, self.model_states):
+            model.load_state_dict(model_state, strict=True)
+        for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
+            optimizer.load_state_dict(optimizer_state)
 
     def KL_Div_loss(self, features, prototypes, labels):
         """
@@ -598,48 +609,3 @@ class Ours(TTAMethod):
         loss = loss.view(anchor_count, batch_size).mean()
 
         return loss
-    
-    def configure_model(self, model=None, bn=None):
-        """
-        Configure model
-
-        Options:
-        - configure_model() : as same as original
-        - configure_model(model) : configure model custom
-        - configure_model(model, bn=True) : configure model with bn
-        - configure_model(model, bn=False) : configure model without bn
-        """
-        model = model if model is not None else self.model
-        model.eval()
-        model.requires_grad_(False)
-
-        for m in model.modules():
-            if isinstance(m, nn.BatchNorm2d):
-                if bn is None or bn:
-                    m.requires_grad_(True)
-                    m.track_running_stats = False
-                    m.running_mean = None
-                    m.running_var = None
-            elif isinstance(m, nn.BatchNorm1d):
-                m.train()
-                if bn is None or bn:
-                    m.requires_grad_(True)
-            else:
-                m.requires_grad_(False if bn else True)
-
-    def copy_model_and_optimizer(self):
-        """Copy the model and optimizer states for resetting after adaptation."""
-        model_states = [deepcopy(model.state_dict()) for model in self.models]
-        optimizer_states = [
-            deepcopy(optimizer.state_dict()) for optimizer in self.optimizers
-        ]
-        return model_states, optimizer_states
-
-    def load_model_and_optimizer(self):
-        """Restore the model and optimizer states from copies."""
-        for model, model_state in zip(self.models, self.model_states):
-            model.load_state_dict(model_state, strict=True)
-        for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
-            optimizer.load_state_dict(optimizer_state)
-
-    
