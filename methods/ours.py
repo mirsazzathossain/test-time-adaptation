@@ -347,6 +347,9 @@ class Ours(TTAMethod):
         if "mem_loss" in self.cfg.Ours.LOSSES:
             loss_stu += mem_loss
 
+        hubber_loss = nn.HuberLoss()
+        loss_t2 += hubber_loss(outputs_t2, outputs_t1.detach())
+
         return outputs, loss_stu, loss_t2
 
     @torch.enable_grad()
