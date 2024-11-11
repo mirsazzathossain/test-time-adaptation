@@ -238,8 +238,8 @@ class Ours(TTAMethod):
             bool: True if the priority queues are full, False otherwise
         """
         full = True
-        for pq in self.priority_queues:
-            if pq.is_empty():
+        for i in range(self.num_classes):
+            if self.pqs[i].is_empty():
                 full = False
                 break
         return full
