@@ -318,7 +318,7 @@ class Ours(TTAMethod):
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += 0.5 * im_loss
+            loss_t2 += im_loss
 
         loss_differential = differential_loss(
             outputs_s,
@@ -381,6 +381,24 @@ class Ours(TTAMethod):
             device=self.device,
             update_all=True,
         )
+
+        self.model_t2 = ema_update_model(
+            model_to_update=self.model_t2,
+            model_to_merge=self.model_s,
+            momentum=self.m_teacher_momentum,
+            device=self.device,
+            update_all=True,
+        )
+
+        # # Stochastic restore
+        # with torch.no_grad():
+        #     self.rst = 0.01
+        #     if self.rst > 0.:
+        #         for nm, m in self.model_s.named_modules():
+        #             for npp, p in m.named_parameters():
+        #                 if npp in ['weight', 'bias'] and p.requires_grad:
+        #                     mask = (torch.rand(p.shape) < self.rst).float().to(self.device)
+        #                     p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (1.-mask)
 
         self.c = self.c + 1
         return outputs
