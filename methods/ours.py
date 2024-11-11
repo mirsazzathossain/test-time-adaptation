@@ -239,7 +239,7 @@ class Ours(TTAMethod):
         """
         full = True
         for i in range(self.num_classes):
-            if self.pqs[i].is_empty():
+            if self.priority_queues[i].is_empty():
                 full = False
                 break
         return full
