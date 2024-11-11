@@ -252,15 +252,31 @@ class Ours(TTAMethod):
         x = x[0]
         x_aug = self.tta_transform(x)
 
+        # Create the prediction of the anchor (source) model
+        anchor_prob = torch.nn.functional.softmax(self.model(x), dim=1).max(1)[0]
+
+        # Augmentation-averaged Prediction
+        ema_outputs = []
+        if anchor_prob.mean(0) < self.ap:
+            for _ in range(self.n_augmentations):
+                outputs_ = self.model_t1(self.transform(x)).detach()
+                ema_outputs.append(outputs_)
+
+            # Threshold choice discussed in supplementary
+            outputs_t1 = torch.stack(ema_outputs).mean(0)
+        else:
+            # Create the prediction of the teacher model
+            outputs_t1 = self.model_t1(x)
+
         # get the outputs from the models
         outputs_s = self.model_s(x)
-        outputs_t1 = self.model_t1(x)
+        # outputs_t1 = self.model_t1(x)
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
 
         alpha = 0.5
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t1, dim=1)
 
         wandb.log(
             {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
@@ -274,7 +290,7 @@ class Ours(TTAMethod):
             wandb.log({"ce_s_t1": loss_ce_s_t1.mean(0)})
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
             loss_ce_s_t2 = self.symmetric_cross_entropy(outputs_s, outputs_t2.detach())
-            loss_self_training += 0.5 * loss_ce_s_t2
+            # loss_self_training += 0.5 * loss_ce_s_t2
             wandb.log({"ce_s_t2": loss_ce_s_t2.mean(0)})
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
             loss_ce_s_aug_t1 = self.symmetric_cross_entropy(
@@ -352,7 +368,7 @@ class Ours(TTAMethod):
             self.rms_norm,
         )
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += loss_differential
+            # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
 
         features_s = self.backbone_s(x)
