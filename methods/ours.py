@@ -355,10 +355,16 @@ class Ours(TTAMethod):
         entropy_t2 = self.ent(outputs_t2)
 
         # apply filtering for feature selection
-        filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
+        # filter_ids_1, filter_ids_2, filter_ids_3, filter_ids_4 = confidence_condition(
+        #     entropy_t1, entropy_t2, entropy_threshold=0.5
+        # )
+        # # merge the filter ids
+
+        # selected_filter_ids = filter_ids_2
+
+        selected_filter_ids = confidence_condition(
             entropy_t1, entropy_t2, entropy_threshold=0.5
-        )
-        selected_filter_ids = filter_ids_2
+        )[0]
 
         # select prototypes from T1 model
         features_t1 = self.backbone_t1(x)
