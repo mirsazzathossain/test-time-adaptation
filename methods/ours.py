@@ -237,7 +237,7 @@ class Ours(TTAMethod):
                 count += 1
         return count
 
-    def loss_calculation(self, x):
+    def loss_calculation(self, x, y=None):
         """
         Calculate the loss for the current batch.
 
@@ -252,31 +252,62 @@ class Ours(TTAMethod):
         x = x[0]
         x_aug = self.tta_transform(x)
 
-        # Create the prediction of the anchor (source) model
-        anchor_prob = torch.nn.functional.softmax(self.model(x), dim=1).max(1)[0]
+        # output_source = self.model(x)
+        # # Create the prediction of the anchor (source) model
+        # anchor_prob = torch.nn.functional.softmax(output_source, dim=1).max(1)[0]
 
-        # Augmentation-averaged Prediction
-        ema_outputs = []
-        if anchor_prob.mean(0) < 0.92:
-            for _ in range(32):
-                outputs_ = self.model_t1(self.tta_transform(x)).detach()
-                ema_outputs.append(outputs_)
+        # # Augmentation-averaged Prediction
+        # ema_outputs = []
+        # if anchor_prob.mean(0) < 0.92:
+        #     for _ in range(32):
+        #         outputs_ = self.model_t1(self.tta_transform(x)).detach()
+        #         ema_outputs.append(outputs_)
 
-            # Threshold choice discussed in supplementary
-            outputs_t1 = torch.stack(ema_outputs).mean(0)
-        else:
-            # Create the prediction of the teacher model
-            outputs_t1 = self.model_t1(x)
+        #     # Threshold choice discussed in supplementary
+        #     outputs_t1 = torch.stack(ema_outputs).mean(0)
+        # else:
+        #     # Create the prediction of the teacher model
+        #     outputs_t1 = self.model_t1(x)
 
         # get the outputs from the models
         outputs_s = self.model_s(x)
-        # outputs_t1 = self.model_t1(x)
+        outputs_t1 = self.model_t1(x)
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
 
+        comb_t1_t2 = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
+        comb_t1_t2_stu = torch.nn.functional.softmax(
+            outputs_t1 + outputs_t2 + outputs_s, dim=1
+        )
+        comb_t1_s = torch.nn.functional.softmax(outputs_t1 + outputs_s, dim=1)
+        comb_t2_s = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
+
+        # actual accuracy of three models
+        wandb.log(
+            {
+                "acc_s": (torch.nn.functional.softmax(outputs_s, dim=1).argmax(1) == y)
+                .float()
+                .mean(0),
+                "acc_t1": (
+                    torch.nn.functional.softmax(outputs_t1, dim=1).argmax(1) == y
+                )
+                .float()
+                .mean(0),
+                "acc_t2": (
+                    torch.nn.functional.softmax(outputs_t2, dim=1).argmax(1) == y
+                )
+                .float()
+                .mean(0),
+                "acc_comb_t1_t2": (comb_t1_t2.argmax(1) == y).float().mean(0),
+                "acc_comb_t1_t2_stu": (comb_t1_t2_stu.argmax(1) == y).float().mean(0),
+                "acc_comb_t1_s": (comb_t1_s.argmax(1) == y).float().mean(0),
+                "acc_comb_t2_s": (comb_t2_s.argmax(1) == y).float().mean(0),
+            }
+        )
+
         alpha = 0.5
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
 
         wandb.log(
             {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
@@ -396,7 +427,7 @@ class Ours(TTAMethod):
         return outputs, loss_stu, loss_t2
 
     @torch.enable_grad()
-    def forward_and_adapt(self, x):
+    def forward_and_adapt(self, x, y=None):
         """
         Forward pass and adaptation for the current batch.
 
@@ -415,7 +446,7 @@ class Ours(TTAMethod):
             self.optimizer.zero_grad()
         else:
             with torch.amp.autocast("cuda"):
-                outputs, loss_stu, loss_t2 = self.loss_calculation(x)
+                outputs, loss_stu, loss_t2 = self.loss_calculation(x, y)
 
                 self.optimizer_s.zero_grad()
                 loss_stu.backward()

@@ -70,7 +70,7 @@ def get_accuracy(model: torch.nn.Module,
     with torch.no_grad():
         for i, data in enumerate(data_loader):
             imgs, labels = data[0], data[1]
-            output = model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device))
+            output = model([img.to(device) for img in imgs]) if isinstance(imgs, list) else model(imgs.to(device), labels.to(device))
             predictions = output.argmax(1)
 
             if dataset_name == "imagenet_d" and domain_name != "none":
