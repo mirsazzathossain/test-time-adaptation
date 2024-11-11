@@ -259,7 +259,7 @@ class Ours(TTAMethod):
         ema_outputs = []
         if anchor_prob.mean(0) < 0.92:
             for _ in range(32):
-                outputs_ = self.model_t1(self.transform(x)).detach()
+                outputs_ = self.model_t1(self.tta_transform(x)).detach()
                 ema_outputs.append(outputs_)
 
             # Threshold choice discussed in supplementary
