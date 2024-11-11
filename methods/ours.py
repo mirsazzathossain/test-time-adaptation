@@ -264,7 +264,7 @@ class Ours(TTAMethod):
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
 
-        alpha = 0.8
+        alpha = 0.5
         # final output
         outputs = torch.nn.functional.softmax(
             alpha * outputs_t1.detach() + outputs_t2, dim=1
