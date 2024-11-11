@@ -325,7 +325,7 @@ class Ours(TTAMethod):
 
         alpha = 0.5
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(alpha * outputs_t1 + outputs_t2, dim=1)
 
         wandb.log(
             {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
@@ -339,7 +339,7 @@ class Ours(TTAMethod):
             wandb.log({"ce_s_t1": loss_ce_s_t1.mean(0)})
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
             loss_ce_s_t2 = self.symmetric_cross_entropy(outputs_s, outputs_t2.detach())
-            # loss_self_training += 0.5 * loss_ce_s_t2
+            loss_self_training += 0.5 * loss_ce_s_t2
             wandb.log({"ce_s_t2": loss_ce_s_t2.mean(0)})
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
             loss_ce_s_aug_t1 = self.symmetric_cross_entropy(
@@ -374,7 +374,7 @@ class Ours(TTAMethod):
         )
 
         if self.c % 200 == 0:
-            print(f"Number of empty queues: {self.is_pqs_full()}")
+            logger.info(f"Number of empty queues: {self.is_pqs_full()}")
 
         # calculate the loss for the T2 model
         # features_t2 = self.backbone_t2(x)
@@ -419,7 +419,7 @@ class Ours(TTAMethod):
             self.rms_norm,
         )
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            # loss_stu += loss_differential
+            loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
 
         features_s = self.backbone_s(x)
