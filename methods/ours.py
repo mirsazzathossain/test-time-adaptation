@@ -250,8 +250,11 @@ class Ours(TTAMethod):
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
 
+        alpha = 0.5
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(
+            alpha * outputs_t1.detach() + outputs_t2, dim=1
+        )
 
         # student model loss
         loss_self_training = 0.0
@@ -319,7 +322,7 @@ class Ours(TTAMethod):
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += 2 * im_loss
+            loss_t2 += im_loss
 
         loss_differential = differential_loss(
             outputs_s,
