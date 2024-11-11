@@ -110,9 +110,10 @@ def log_queue(pqs, num_classes):
 def pop_min_from_pqs(pqs, num_classes):
     min_entropies = {}
     for class_label in range(num_classes):
-        min_entropy = pqs[class_label].pop_min()
-        if min_entropy:
-            min_entropies[class_label] = min_entropy
+        if len(pqs[class_label].queue) == pqs[class_label].max_size:
+            min_entropy = pqs[class_label].pop_min()
+            if min_entropy:
+                min_entropies[class_label] = min_entropy
     return min_entropies
 
 def plot_tsne(pqs, prototypes, num_classes, dataset_name):

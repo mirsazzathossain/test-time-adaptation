@@ -23,9 +23,7 @@ from utils.misc import (
     confidence_condition,
     ema_update_model,
     init_pqs,
-    plot_tsne,
     pop_min_from_pqs,
-    print_queue_entropies,
     update_pqs,
 )
 from utils.registry import ADAPTATION_REGISTRY
@@ -213,8 +211,8 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        # if self.c % 5 == 0:
-        #     _ = pop_min_from_pqs(pqs, num_classes)
+        if self.c % 5 == 0:
+            _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
         prototypes = compute_prototypes(
@@ -223,10 +221,6 @@ class Ours(TTAMethod):
             feature_dim=features.shape[1],
             device=features.device,
         )
-
-        # plot the t-SNE visualization of the prototypes
-        # if self.c % 20 == 0 and self.c > 0:
-        #     plot_tsne(pqs, prototypes, num_classes, self.dataset_name)
 
         return prototypes
 
@@ -270,27 +264,30 @@ class Ours(TTAMethod):
             alpha * outputs_t1.detach() + outputs_t2, dim=1
         )
 
+        wandb.log(
+            {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
+        )
+
         # student model loss
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
             loss_ce_s_t1 = self.symmetric_cross_entropy(outputs_s, outputs_t1.detach())
             loss_self_training += 0.5 * loss_ce_s_t1
-            wandb.log({"ce_s_t1": loss_ce_s_t1})
+            wandb.log({"ce_s_t1": loss_ce_s_t1.mean(0)})
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
             loss_ce_s_t2 = self.symmetric_cross_entropy(outputs_s, outputs_t2.detach())
             loss_self_training += 0.5 * loss_ce_s_t2
-            wandb.log({"ce_s_t2": loss_ce_s_t2})
+            wandb.log({"ce_s_t2": loss_ce_s_t2.mean(0)})
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
             loss_ce_s_aug_t1 = self.symmetric_cross_entropy(
                 outputs_stu_aug, outputs_t1.detach()
             )
             loss_self_training += 0.5 * loss_ce_s_aug_t1
-            wandb.log({"ce_s_aug_t1": loss_ce_s_aug_t1})
+            wandb.log({"ce_s_aug_t1": loss_ce_s_aug_t1.mean(0)})
         loss_stu = loss_self_training.mean(0)
         wandb.log({"loss_stu_ce": loss_stu})
 
         # calculate the entropy of the outputs
-        entropy_s = self.ent(outputs_s)
         entropy_t1 = self.ent(outputs_t1)
         entropy_t2 = self.ent(outputs_t2)
 
@@ -372,7 +369,7 @@ class Ours(TTAMethod):
         if "l2_sp" in self.cfg.Ours.LOSSES:
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
-            loss_stu += loss_l2_sp(self.model_s)
+            loss_stu += 10 * loss_l2_sp(self.model_s)
             wandb.log({"l2_sp": loss_l2_sp(self.model_s)})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
@@ -443,6 +440,15 @@ class Ours(TTAMethod):
                             p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
                                 1.0 - mask
                             )
+
+        # with torch.no_grad():
+        #     if self.use_prior_correction:
+        #         prior = outputs.softmax(1).mean(0)
+        #         smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+        #             prior
+        #         )
+        #         smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+        #         outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
