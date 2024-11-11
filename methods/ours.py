@@ -312,8 +312,8 @@ class Ours(TTAMethod):
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2_proto
-        # if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-        #     loss_t2 += 10 * mse_t2
+        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += 10 * mse_t2
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += 100 * kld_t2
         if "contr_t2" in self.cfg.Ours.LOSSES:
@@ -344,7 +344,6 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             loss_stu += loss_l2_sp(self.model_s)
-
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
             loss_stu += mem_loss
