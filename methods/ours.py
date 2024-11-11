@@ -10,6 +10,7 @@ from methods.base import TTAMethod
 from models.model import split_up_model
 from utils.losses import (
     Entropy,
+    L2SPLoss,
     MMDLoss,
     RMSNorm,
     SymmetricCrossEntropy,
@@ -339,6 +340,10 @@ class Ours(TTAMethod):
 
         self.feature_bank = features_s
 
+        # add l2-sp loss so that the student model does not diverge too much from source model
+        pretrained_weights = self.model_states[0]
+        loss_l2_sp = L2SPLoss(pretrained_weights)
+        loss_stu += loss_l2_sp(self.model_s)
         if "mem_loss" in self.cfg.Ours.LOSSES:
             loss_stu += mem_loss
 

@@ -217,3 +217,15 @@ class MMDLoss(nn.Module):
         XY = K[:X_size, X_size:].mean()
         YY = K[X_size:, X_size:].mean()
         return XX - 2 * XY + YY
+    
+
+class L2SPLoss(nn.Module):
+    def __init__(self, pre_trained_weights):
+        super(L2SPLoss, self).__init__()
+        self.pre_trained_weights = pre_trained_weights  # source model weights
+
+    def forward(self, model):
+        loss = 0.0
+        for name, param in model.named_parameters():
+            loss += F.mse_loss(param, self.pre_trained_weights[name].to(param.device))
+        return loss
