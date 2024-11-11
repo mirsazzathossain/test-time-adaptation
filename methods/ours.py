@@ -4,6 +4,7 @@ from copy import deepcopy
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import wandb
 
 from augmentations.transforms_cotta import get_tta_transforms
 from methods.base import TTAMethod
@@ -250,7 +251,7 @@ class Ours(TTAMethod):
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
 
-        alpha = 0.5
+        alpha = 0.8
         # final output
         outputs = torch.nn.functional.softmax(
             alpha * outputs_t1.detach() + outputs_t2, dim=1
@@ -259,18 +260,25 @@ class Ours(TTAMethod):
         # student model loss
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
-            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+            loss_ce_s_t1 = self.symmetric_cross_entropy(
                 outputs_s, outputs_t1.detach()
             )
+            loss_self_training += 0.5 * loss_ce_s_t1
+            wandb.log({"ce_s_t1": loss_ce_s_t1})
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
-            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+            loss_ce_s_t2 = self.symmetric_cross_entropy(
                 outputs_s, outputs_t2.detach()
             )
+            loss_self_training += 0.5 * loss_ce_s_t2
+            wandb.log({"ce_s_t2": loss_ce_s_t2})
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
-            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+            loss_ce_s_aug_t1 = self.symmetric_cross_entropy(
                 outputs_stu_aug, outputs_t1.detach()
             )
+            loss_self_training += 0.5 * loss_ce_s_aug_t1
+            wandb.log({"ce_s_aug_t1": loss_ce_s_aug_t1})
         loss_stu = loss_self_training.mean(0)
+        wandb.log({"loss_stu_ce": loss_stu})
 
         # calculate the entropy of the outputs
         entropy_s = self.ent(outputs_s)
@@ -315,14 +323,19 @@ class Ours(TTAMethod):
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2_proto
+            wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += 10 * mse_t2
+            wandb.log({"mse_t2_proto": 10 * mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += 100 * kld_t2
+            wandb.log({"kld_t2_proto": 100 * kld_t2})
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
+            wandb.log({"contr_t2": cntrs_t2})
         if "im_loss" in self.cfg.Ours.LOSSES:
             loss_t2 += im_loss
+            wandb.log({"im_loss": im_loss})
 
         loss_differential = differential_loss(
             outputs_s,
@@ -333,6 +346,7 @@ class Ours(TTAMethod):
         )
         if "differ_loss" in self.cfg.Ours.LOSSES:
             loss_stu += loss_differential
+            wandb.log({"differ_loss": loss_differential})
 
         features_s = self.backbone_s(x)
         if self.c == 0:
@@ -347,9 +361,14 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             loss_stu += loss_l2_sp(self.model_s)
+            wandb.log({"l2_sp": loss_l2_sp(self.model_s)})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
             loss_stu += mem_loss
+            wandb.log({"mem_loss": mem_loss})
+
+        wandb.log({"loss_stu": loss_stu})
+        wandb.log({"loss_t2": loss_t2})
 
         return outputs, loss_stu, loss_t2
 
