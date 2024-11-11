@@ -101,7 +101,7 @@ class TTAMethod(nn.Module):
             if self.pointer == (self.window_length - 1):
                 # update the model, since the complete buffer has changed
                 for _ in range(self.steps):
-                    outputs = self.forward_and_adapt(self.input_buffer)
+                    outputs = self.forward_and_adapt(self.input_buffer, y)
 
                     # if specified, reset the model after a certain amount of update steps
                     self.performed_updates += 1
@@ -183,7 +183,9 @@ class TTAMethod(nn.Module):
         if model is None:
             model = self.model
         for nm, m in model.named_modules():
-            bn_layer = isinstance(m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm))
+            bn_layer = isinstance(
+                m, (nn.BatchNorm1d, nn.BatchNorm2d, nn.LayerNorm, nn.GroupNorm)
+            )
             for np, p in m.named_parameters():
                 if np in ["weight", "bias"] and p.requires_grad:
                     if bn is not None and bn_layer != bn:
@@ -195,7 +197,7 @@ class TTAMethod(nn.Module):
     def setup_optimizer(self, params=None, lr=None):
         """
         Setup the optimizer.
-            
+
         Args:
             params (list): list of parameters
             lr (float): learning rate
@@ -239,13 +241,15 @@ class TTAMethod(nn.Module):
         Args:
             params (list): list of parameters
             model (nn.Module): model
-            
+
         Returns:
             trainable (int): number of trainable parameters
             total (int): total number of parameters
         """
         if params is None and model is None:
-            trainable = sum(p.numel() for p in self.params) if len(self.params) > 0 else 0
+            trainable = (
+                sum(p.numel() for p in self.params) if len(self.params) > 0 else 0
+            )
             total = sum(p.numel() for p in self.model.parameters())
         else:
             trainable = sum(p.numel() for p in params) if len(params) > 0 else 0
