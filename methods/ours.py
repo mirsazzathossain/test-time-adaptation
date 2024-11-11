@@ -213,8 +213,8 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        if self.c % 5 == 0:
-            _ = pop_min_from_pqs(pqs, num_classes)
+        # if self.c % 5 == 0:
+        #     _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
         prototypes = compute_prototypes(
@@ -260,15 +260,11 @@ class Ours(TTAMethod):
         # student model loss
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
-            loss_ce_s_t1 = self.symmetric_cross_entropy(
-                outputs_s, outputs_t1.detach()
-            )
+            loss_ce_s_t1 = self.symmetric_cross_entropy(outputs_s, outputs_t1.detach())
             loss_self_training += 0.5 * loss_ce_s_t1
             wandb.log({"ce_s_t1": loss_ce_s_t1})
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
-            loss_ce_s_t2 = self.symmetric_cross_entropy(
-                outputs_s, outputs_t2.detach()
-            )
+            loss_ce_s_t2 = self.symmetric_cross_entropy(outputs_s, outputs_t2.detach())
             loss_self_training += 0.5 * loss_ce_s_t2
             wandb.log({"ce_s_t2": loss_ce_s_t2})
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
@@ -303,6 +299,9 @@ class Ours(TTAMethod):
             labels_t1,
             selected_filter_ids,
         )
+
+        if not self.pqs.is_empty():
+            logger.info("Priority Queue filled at batch: {}".format(self.c))
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
