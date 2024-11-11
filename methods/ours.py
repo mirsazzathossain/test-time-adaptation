@@ -230,6 +230,20 @@ class Ours(TTAMethod):
 
         return prototypes
 
+    def is_pqs_full(self):
+        """
+        Check if the priority queues are full.
+
+        Returns:
+            bool: True if the priority queues are full, False otherwise
+        """
+        full = True
+        for pq in self.priority_queues:
+            if pq.is_empty():
+                full = False
+                break
+        return full
+
     def loss_calculation(self, x):
         """
         Calculate the loss for the current batch.
@@ -300,8 +314,8 @@ class Ours(TTAMethod):
             selected_filter_ids,
         )
 
-        if not self.pqs.is_empty():
-            logger.info("Priority Queue filled at batch: {}".format(self.c))
+        if self.is_pqs_full():
+            logger.info("Priority queues are full at batch: {}".format(self.c))
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
