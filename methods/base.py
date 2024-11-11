@@ -75,7 +75,7 @@ class TTAMethod(nn.Module):
         self.mixed_precision = cfg.MIXED_PRECISION
         self.scaler = torch.cuda.amp.GradScaler() if cfg.MIXED_PRECISION else None
 
-    def forward(self, x):
+    def forward(self, x, y=None):
         if self.episodic:
             self.reset()
 
