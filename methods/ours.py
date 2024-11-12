@@ -162,7 +162,6 @@ class Ours(TTAMethod):
 
         # keep a feature bank
         self.feature_bank = None
-        self.l2_loss = 0.0
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -440,19 +439,11 @@ class Ours(TTAMethod):
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
 
-            # moving average of l2 loss
-            self.l2_loss = 0.98 * self.l2_loss + 0.02 * l2_sp
-
-        if "mem_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += mem_loss
-            wandb.log({"mem_loss": mem_loss})
+        loss_stu += mem_loss
+        wandb.log({"mem_loss": mem_loss})
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
-
-        if l2_sp - self.l2_loss > 0.01:
-            loss_stu = torch.tensor(0.0, device=self.device, requires_grad=True)
-            loss_t2 = torch.tensor(0.0, device=self.device, requires_grad=True)
 
         return outputs, loss_stu, loss_t2
 
@@ -516,14 +507,14 @@ class Ours(TTAMethod):
                                 1.0 - mask
                             )
 
-        # with torch.no_grad():
-        #     if True:
-        #         prior = outputs.softmax(1).mean(0)
-        #         smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-        #             prior
-        #         )
-        #         smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-        #         outputs *= smoothed_prior
+        with torch.no_grad():
+            if True:
+                prior = outputs.softmax(1).mean(0)
+                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                    prior
+                )
+                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
