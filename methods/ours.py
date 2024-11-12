@@ -323,9 +323,9 @@ class Ours(TTAMethod):
             }
         )
 
-        alpha = 0.5
+        alpha = 0.7
         # final output
-        outputs = torch.nn.functional.softmax(alpha * outputs_t1 + outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t1 + alpha * outputs_t2, dim=1)
 
         wandb.log(
             {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
@@ -412,7 +412,7 @@ class Ours(TTAMethod):
             loss_t2 += cntrs_t2
             wandb.log({"contr_t2": cntrs_t2})
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += im_loss
+            loss_t2 += 2 * im_loss
             wandb.log({"im_loss": im_loss})
 
         loss_differential = differential_loss(
@@ -438,7 +438,7 @@ class Ours(TTAMethod):
         if "l2_sp" in self.cfg.Ours.LOSSES:
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
-            loss_stu += 10 * loss_l2_sp(self.model_s)
+            loss_stu += loss_l2_sp(self.model_s)
             wandb.log({"l2_sp": loss_l2_sp(self.model_s)})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
