@@ -415,16 +415,16 @@ class Ours(TTAMethod):
             loss_t2 += 2 * im_loss
             wandb.log({"im_loss": im_loss})
 
-        loss_differential = differential_loss(
-            outputs_s,
-            outputs_t1.detach(),
-            outputs_t2.detach(),
-            self.lamda_,
-            self.rms_norm,
-        )
-        if "differ_loss" in self.cfg.Ours.LOSSES:
-            # loss_stu += loss_differential
-            wandb.log({"differ_loss": loss_differential})
+        # loss_differential = differential_loss(
+        #     outputs_s,
+        #     outputs_t1.detach(),
+        #     outputs_t2.detach(),
+        #     self.lamda_,
+        #     self.rms_norm,
+        # )
+        # if "differ_loss" in self.cfg.Ours.LOSSES:
+        #     # loss_stu += loss_differential
+        #     wandb.log({"differ_loss": loss_differential})
 
         features_s = self.backbone_s(x)
         if self.c == 0:
