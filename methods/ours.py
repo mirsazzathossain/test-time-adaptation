@@ -164,8 +164,14 @@ class Ours(TTAMethod):
         # keep a feature bank
         self.feature_bank = None
 
-        self.domain_shift_scheduler = DomainShiftScheduler(
+        self.scheduler_s = DomainShiftScheduler(
             self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.001, 5
+        )
+        self.scheduler_backbone_t2 = DomainShiftScheduler(
+            self.optimizer_backbone_t2,
+            self.optimizer_backbone_t2.param_groups[0]["lr"],
+            0.001,
+            5,
         )
 
     def prototype_updates(
@@ -461,7 +467,8 @@ class Ours(TTAMethod):
 
         # self.prev_im_loss = im_loss
 
-        self.domain_shift_scheduler.step(im_loss, threshold=0.8)
+        self.scheduler_s.step(loss_stu, threshold=0.8)
+        self.scheduler_backbone_t2.step(loss_t2, threshold=0.8)
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
