@@ -439,8 +439,9 @@ class Ours(TTAMethod):
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
 
-        loss_stu += mem_loss
-        wandb.log({"mem_loss": mem_loss})
+        if "mem_loss" in self.cfg.Ours.LOSSES:
+            loss_stu += mem_loss
+            wandb.log({"mem_loss": mem_loss})
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
