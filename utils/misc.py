@@ -214,22 +214,23 @@ class DomainShiftScheduler(object):
 
     def step(self, im_loss, threshold=0.1):
         if self.prev_im_loss is not None and im_loss - self.prev_im_loss > threshold:
-            if self.adjust_type == "increase":
-                logger.info(
-                    f"Domain shift detected, increasing LR to {self.adjust_lr}"
-                )
-                self.optimizer.param_groups[0]["lr"] = self.adjust_lr
-            elif self.adjust_type == "decrease":
-                logger.info(
-                    f"Domain shift detected, decreasing LR to {self.adjust_lr}"
-                )
-                self.optimizer.param_groups[0]["lr"] = self.adjust_lr
+            if self.adjust_lr is not None:
+                if self.adjust_type == "increase":
+                    logger.info(
+                        f"Domain shift detected, increasing LR to {self.adjust_lr}"
+                    )
+                    self.optimizer.param_groups[0]["lr"] = self.adjust_lr
+                elif self.adjust_type == "decrease":
+                    logger.info(
+                        f"Domain shift detected, decreasing LR to {self.adjust_lr}"
+                    )
+                    self.optimizer.param_groups[0]["lr"] = self.adjust_lr
+                else:
+                    logger.info("No adjustment to learning rate as adjust_lr is None.")
             else:
-                logger.info("No adjustment to learning rate as adjust_lr is None.")
-        else:
-            logger.info("Domain shift detected, no adjustment in LR")
+                logger.info("Domain shift detected, no adjustment in LR")
 
-        self.scheduler_counter = self.decay_iterations
+            self.scheduler_counter = self.decay_iterations
 
         if self.scheduler_counter > 0 and self.adjust_lr is not None:
             self.optimizer.param_groups[0]["lr"] *= (
