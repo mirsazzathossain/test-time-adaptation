@@ -162,6 +162,7 @@ class Ours(TTAMethod):
 
         # keep a feature bank
         self.feature_bank = None
+        self.l2_loss = 0.0
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -435,8 +436,12 @@ class Ours(TTAMethod):
         if "l2_sp" in self.cfg.Ours.LOSSES:
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
-            loss_stu += loss_l2_sp(self.model_s)
-            wandb.log({"l2_sp": loss_l2_sp(self.model_s)})
+            l2_sp = loss_l2_sp(self.model_s)
+            loss_stu += l2_sp
+            wandb.log({"l2_sp": l2_sp})
+
+            # moving average of l2 loss
+            self.l2_loss = 0.98 * self.l2_loss + 0.02 * l2_sp
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
             loss_stu += mem_loss
@@ -444,6 +449,10 @@ class Ours(TTAMethod):
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
+
+        if l2_sp - self.l2_loss > 0.01:
+            loss_stu = torch.tensor(0.0, device=self.device, requires_grad=True)
+            loss_t2 = torch.tensor(0.0, device=self.device, requires_grad=True)
 
         return outputs, loss_stu, loss_t2
 
