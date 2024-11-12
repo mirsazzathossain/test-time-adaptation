@@ -446,7 +446,8 @@ class Ours(TTAMethod):
             loss_stu += mem_loss
             wandb.log({"mem_loss": mem_loss})
 
-        if self.prev_im_loss and im_loss - self.prev_im_loss > 0.6:
+        if self.prev_im_loss and im_loss - self.prev_im_loss > 0.8:
+            logger.info(f"Domain shift detected at iteration {self.c}, adjusting LR")
             self.scheduler_counter = 5
             self.optimizer_s.param_groups[0]["lr"] *= 1 / pow(
                 10, self.scheduler_counter
@@ -501,13 +502,13 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        self.model_t2 = ema_update_model(
-            model_to_update=self.model_t2,
-            model_to_merge=self.model_s,
-            momentum=self.m_teacher_momentum,
-            device=self.device,
-            update_all=True,
-        )
+        # self.model_t2 = ema_update_model(
+        #     model_to_update=self.model_t2,
+        #     model_to_merge=self.model_s,
+        #     momentum=self.m_teacher_momentum,
+        #     device=self.device,
+        #     update_all=True,
+        # )
 
         # Stochastic restore
         with torch.no_grad():
