@@ -175,3 +175,69 @@ def print_queue_entropies(priority_queues, num_classes):
     for class_label in range(num_classes):
         entropies = priority_queues[class_label].get_entropies()
         print(f"Class {class_label}: Entropies = {entropies}")
+
+
+class DomainShiftScheduler(object):
+    def __init__(self, optimizer, initial_lr=0.01, adjust_lr=None, decay_iterations=5):
+        """
+        Adjust the learning rate dynamically based on domain shift.
+
+        Parameters:
+        - optimizer: The optimizer you're using (e.g., SGD, Adam)
+        - initial_lr: The original learning rate (default: 0.01)
+        - adjust_lr: The learning rate to adjust to when domain shift is detected (None means no adjustment)
+        - decay_iterations: The number of iterations to decay back to original learning rate (default: 5)
+        """
+        self.optimizer = optimizer
+        self.initial_lr = initial_lr
+        self.adjust_lr = adjust_lr
+        self.decay_iterations = decay_iterations
+        self.scheduler_counter = 0
+        self.prev_im_loss = None
+
+        if self.adjust_lr is not None:
+            if self.adjust_lr == self.initial_lr:
+                raise ValueError("adjust_lr should be different from initial_lr")
+            if self.adjust_lr > self.initial_lr:
+                self.adjust_type = "increase"
+            else:
+                self.adjust_type = "decrease"
+        else:
+            self.adjust_type = None
+
+        if self.adjust_lr is not None:
+            self.decay_factor = (self.initial_lr / self.adjust_lr) ** (
+                1 / self.decay_iterations
+            )
+        else:
+            self.decay_factor = 1
+
+    def step(self, im_loss, threshold=0.1):
+        if self.prev_im_loss is not None and im_loss - self.prev_im_loss > threshold:
+            if self.adjust_type == "increase":
+                logger.info(
+                    f"Domain shift detected, increasing LR to {self.adjust_lr}"
+                )
+                self.optimizer.param_groups[0]["lr"] = self.adjust_lr
+            elif self.adjust_type == "decrease":
+                logger.info(
+                    f"Domain shift detected, decreasing LR to {self.adjust_lr}"
+                )
+                self.optimizer.param_groups[0]["lr"] = self.adjust_lr
+            else:
+                logger.info("No adjustment to learning rate as adjust_lr is None.")
+        else:
+            logger.info("Domain shift detected, no adjustment in LR")
+
+        self.scheduler_counter = self.decay_iterations
+
+        if self.scheduler_counter > 0 and self.adjust_lr is not None:
+            self.optimizer.param_groups[0]["lr"] *= (
+                self.decay_factor
+            )
+            self.scheduler_counter -= 1
+            if self.scheduler_counter == 0:
+                logger.info(f"Learning rate decayed to {self.initial_lr}, resetting LR")
+                self.optimizer.param_groups[0]["lr"] = self.initial_lr
+
+        self.prev_im_loss = im_loss

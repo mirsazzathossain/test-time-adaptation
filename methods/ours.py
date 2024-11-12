@@ -19,6 +19,7 @@ from utils.losses import (
     info_max_loss,
 )
 from utils.misc import (
+    DomainShiftScheduler,
     compute_prototypes,
     confidence_condition,
     ema_update_model,
@@ -163,8 +164,9 @@ class Ours(TTAMethod):
         # keep a feature bank
         self.feature_bank = None
 
-        self.prev_im_loss = None
-        self.scheduler_counter = 0
+        self.domain_shift_scheduler = DomainShiftScheduler(
+            self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.1, 5
+        )
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -446,18 +448,20 @@ class Ours(TTAMethod):
             loss_stu += mem_loss
             wandb.log({"mem_loss": mem_loss})
 
-        if self.prev_im_loss and im_loss - self.prev_im_loss > 0.8:
-            logger.info(f"Domain shift detected at iteration {self.c}, adjusting LR")
-            self.scheduler_counter = 5
-            self.optimizer_s.param_groups[0]["lr"] *= 1 / pow(
-                10, self.scheduler_counter
-            )
+        # if self.prev_im_loss and im_loss - self.prev_im_loss > 0.8:
+        #     logger.info(f"Domain shift detected at iteration {self.c}, adjusting LR")
+        #     self.scheduler_counter = 5
+        #     self.optimizer_s.param_groups[0]["lr"] *= 1 / pow(
+        #         10, self.scheduler_counter
+        #     )
 
-        if self.scheduler_counter > 0:
-            self.optimizer_s.param_groups[0]["lr"] *= 10
-            self.scheduler_counter -= 1
+        # if self.scheduler_counter > 0:
+        #     self.optimizer_s.param_groups[0]["lr"] *= 10
+        #     self.scheduler_counter -= 1
 
-        self.prev_im_loss = im_loss
+        # self.prev_im_loss = im_loss
+
+        self.domain_shift_scheduler.step(im_loss, threshold=0.8)
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
