@@ -323,9 +323,8 @@ class Ours(TTAMethod):
             }
         )
 
-        alpha = 0.7
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1 + alpha * outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
 
         wandb.log(
             {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
