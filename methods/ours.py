@@ -165,7 +165,7 @@ class Ours(TTAMethod):
         self.feature_bank = None
 
         self.domain_shift_scheduler = DomainShiftScheduler(
-            self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.1, 5
+            self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.001, 5
         )
 
     def prototype_updates(

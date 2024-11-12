@@ -236,9 +236,10 @@ class DomainShiftScheduler(object):
             self.optimizer.param_groups[0]["lr"] *= (
                 self.decay_factor
             )
+            logger.info(f"Learing rate decayed to {self.optimizer.param_groups[0]['lr']}")
             self.scheduler_counter -= 1
             if self.scheduler_counter == 0:
-                logger.info(f"Learning rate decayed to {self.initial_lr}, resetting LR")
+                logger.info(f"Resetting learning rate to {self.initial_lr}")
                 self.optimizer.param_groups[0]["lr"] = self.initial_lr
 
         self.prev_im_loss = im_loss
