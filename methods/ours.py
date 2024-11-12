@@ -467,8 +467,8 @@ class Ours(TTAMethod):
 
         # self.prev_im_loss = im_loss
 
-        self.scheduler_s.step(loss_stu, threshold=0.8)
-        self.scheduler_backbone_t2.step(loss_t2, threshold=0.8)
+        self.scheduler_s.step(l2_sp, threshold=0.8)
+        self.scheduler_backbone_t2.step(l2_sp, threshold=0.8)
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
