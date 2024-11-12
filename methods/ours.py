@@ -446,7 +446,7 @@ class Ours(TTAMethod):
             loss_stu += mem_loss
             wandb.log({"mem_loss": mem_loss})
 
-        if im_loss - self.prev_im_loss > 0.6:
+        if self.prev_im_loss and im_loss - self.prev_im_loss > 0.6:
             self.scheduler_counter = 5
             self.optimizer_s.param_groups[0]["lr"] *= 1 / pow(
                 10, self.scheduler_counter
