@@ -507,14 +507,14 @@ class Ours(TTAMethod):
                                 1.0 - mask
                             )
 
-        # with torch.no_grad():
-        #     if self.use_prior_correction:
-        #         prior = outputs.softmax(1).mean(0)
-        #         smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-        #             prior
-        #         )
-        #         smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-        #         outputs *= smoothed_prior
+        with torch.no_grad():
+            if True:
+                prior = outputs.softmax(1).mean(0)
+                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                    prior
+                )
+                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
