@@ -113,24 +113,24 @@ class Ours(TTAMethod):
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
 
         # setup differential loss
-        self.rms_norm = RMSNorm(num_classes, self.device)
-        self.lamda_ = nn.Parameter(
-            torch.zeros(1, dtype=torch.float32, device=self.device, requires_grad=True)
-        )
-        self.lamda_.data.normal_(mean=0, std=0.1)
+        # self.rms_norm = RMSNorm(num_classes, self.device)
+        # self.lamda_ = nn.Parameter(
+        #     torch.zeros(1, dtype=torch.float32, device=self.device, requires_grad=True)
+        # )
+        # self.lamda_.data.normal_(mean=0, std=0.1)
 
-        self.optimizer_s.add_param_group(
-            {
-                "params": self.rms_norm.parameters(),
-                "lr": self.optimizer_s.param_groups[0]["lr"],
-            }
-        )
-        self.optimizer_s.add_param_group(
-            {
-                "params": self.lamda_,
-                "lr": self.optimizer_s.param_groups[0]["lr"],
-            }
-        )
+        # self.optimizer_s.add_param_group(
+        #     {
+        #         "params": self.rms_norm.parameters(),
+        #         "lr": self.optimizer_s.param_groups[0]["lr"],
+        #     }
+        # )
+        # self.optimizer_s.add_param_group(
+        #     {
+        #         "params": self.lamda_,
+        #         "lr": self.optimizer_s.param_groups[0]["lr"],
+        #     }
+        # )
 
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
@@ -162,6 +162,9 @@ class Ours(TTAMethod):
 
         # keep a feature bank
         self.feature_bank = None
+
+        self.prev_im_loss = None
+        self.scheduler_counter = 0
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -420,7 +423,7 @@ class Ours(TTAMethod):
             self.rms_norm,
         )
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += loss_differential
+            # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
 
         features_s = self.backbone_s(x)
@@ -442,6 +445,18 @@ class Ours(TTAMethod):
         if "mem_loss" in self.cfg.Ours.LOSSES:
             loss_stu += mem_loss
             wandb.log({"mem_loss": mem_loss})
+
+        if im_loss - self.prev_im_loss > 0.6:
+            self.scheduler_counter = 5
+            self.optimizer_s.param_groups[0]["lr"] *= 1 / pow(
+                10, self.scheduler_counter
+            )
+
+        if self.scheduler_counter > 0:
+            self.optimizer_s.param_groups[0]["lr"] *= 10
+            self.scheduler_counter -= 1
+
+        self.prev_im_loss = im_loss
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
