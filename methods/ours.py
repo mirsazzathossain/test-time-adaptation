@@ -165,12 +165,12 @@ class Ours(TTAMethod):
         self.feature_bank = None
 
         self.scheduler_s = DomainShiftScheduler(
-            self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.1, 5
+            self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.001, 5
         )
         self.scheduler_backbone_t2 = DomainShiftScheduler(
             self.optimizer_backbone_t2,
             self.optimizer_backbone_t2.param_groups[0]["lr"],
-            0.1,
+            0.001,
             5,
         )
 
