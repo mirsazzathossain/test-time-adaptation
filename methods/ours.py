@@ -394,7 +394,7 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
-            # loss_stu += l2_sp
+            loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
