@@ -408,7 +408,7 @@ class Ours(TTAMethod):
             wandb.log({"l2_sp": l2_sp})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += mem_loss
+            loss_stu += 10 * mem_loss
             wandb.log({"mem_loss": mem_loss})
 
         # self.scheduler_s.step(im_loss, threshold=0.8)
@@ -457,13 +457,13 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        # self.model_t2 = ema_update_model(
-        #     model_to_update=self.model_t2,
-        #     model_to_merge=self.model_s,
-        #     momentum=self.m_teacher_momentum,
-        #     device=self.device,
-        #     update_all=True,
-        # )
+        self.model_t2 = ema_update_model(
+            model_to_update=self.model_t2,
+            model_to_merge=self.model_s,
+            momentum=self.m_teacher_momentum,
+            device=self.device,
+            update_all=True,
+        )
 
         # Stochastic restore
         with torch.no_grad():
