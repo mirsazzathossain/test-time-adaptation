@@ -394,7 +394,7 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
-            loss_stu += 10 * l2_sp
+            loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
@@ -460,6 +460,16 @@ class Ours(TTAMethod):
             self.rst = 0.01
             if self.rst > 0.0:
                 for nm, m in self.model_t2.named_modules():
+                    for npp, p in m.named_parameters():
+                        if npp in ["weight", "bias"] and p.requires_grad:
+                            mask = (
+                                (torch.rand(p.shape) < self.rst).float().to(self.device)
+                            )
+                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                1.0 - mask
+                            )
+
+                for nm, m in self.model_s.named_modules():
                     for npp, p in m.named_parameters():
                         if npp in ["weight", "bias"] and p.requires_grad:
                             mask = (
