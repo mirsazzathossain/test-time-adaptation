@@ -47,6 +47,29 @@ class Ours(TTAMethod):
         arch_name = cfg.MODEL.ARCH
         self.arch_name = arch_name
 
+        # setup loss hyperparameters
+        self.alpha = nn.parameter.Parameter(
+            torch.tensor(0.5).to(self.device), requires_grad=True
+        )
+        self.beta = nn.parameter.Parameter(
+            torch.tensor(0.5).to(self.device), requires_grad=True
+        )
+        self.gamma = nn.parameter.Parameter(
+            torch.tensor(0.5).to(self.device), requires_grad=True
+        )
+        self.delta = nn.parameter.Parameter(
+            torch.tensor(0.0).to(self.device), requires_grad=True
+        )
+        self.theta = nn.parameter.Parameter(
+            torch.tensor(0.0).to(self.device), requires_grad=True
+        )
+        self.eta = nn.parameter.Parameter(
+            torch.tensor(2.0).to(self.device), requires_grad=True
+        )
+        self.lam = nn.parameter.Parameter(
+            torch.tensor(5.0).to(self.device), requires_grad=True
+        )
+
         # setup TTA transforms
         self.tta_transform = get_tta_transforms(self.img_size)
 
@@ -98,6 +121,13 @@ class Ours(TTAMethod):
             self.backbone_t2.parameters(), 0.01
         )
 
+        self.optimizer_backbone_t2.add_param_group(
+            {
+                "params": [self.delta, self.theta, self.eta, self.lam],
+                "lr": 0.01,
+            }
+        )
+
         # setup student model
         self.model_s = self.copy_model(self.model)
         for param in self.model_s.parameters():
@@ -112,6 +142,13 @@ class Ours(TTAMethod):
             self.optimizer_s = self.setup_optimizer(self.params_s, lr)
 
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
+
+        self.optimizer_s.add_param_group(
+            {
+                "params": [self.alpha, self.beta, self.gamma],
+                "lr": lr,
+            }
+        )
 
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
@@ -310,17 +347,17 @@ class Ours(TTAMethod):
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
             loss_ce_s_t1 = self.symmetric_cross_entropy(outputs_s, outputs_t1.detach())
-            loss_self_training += 0.5 * loss_ce_s_t1
+            loss_self_training += self.alpha * loss_ce_s_t1
             wandb.log({"ce_s_t1": loss_ce_s_t1.mean(0)})
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
             loss_ce_s_t2 = self.symmetric_cross_entropy(outputs_s, outputs_t2.detach())
-            loss_self_training += 0.5 * loss_ce_s_t2
+            loss_self_training += self.beta * loss_ce_s_t2
             wandb.log({"ce_s_t2": loss_ce_s_t2.mean(0)})
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
             loss_ce_s_aug_t1 = self.symmetric_cross_entropy(
                 outputs_stu_aug, outputs_t1.detach()
             )
-            loss_self_training += 0.5 * loss_ce_s_aug_t1
+            loss_self_training += self.gamma * loss_ce_s_aug_t1
             wandb.log({"ce_s_aug_t1": loss_ce_s_aug_t1.mean(0)})
         loss_stu = loss_self_training.mean(0)
         wandb.log({"loss_stu_ce": loss_stu})
@@ -376,7 +413,7 @@ class Ours(TTAMethod):
 
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += cntrs_t2_proto
+            loss_t2 += self.delta * cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 10 * mse_t2
@@ -385,10 +422,10 @@ class Ours(TTAMethod):
             # loss_t2 += 100 * kld_t2
             wandb.log({"kld_t2_proto": 100 * kld_t2})
         if "contr_t2" in self.cfg.Ours.LOSSES:
-            loss_t2 += cntrs_t2
+            loss_t2 += self.theta * cntrs_t2
             wandb.log({"contr_t2": cntrs_t2})
         if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += 2 * im_loss
+            loss_t2 += self.eta * im_loss
             wandb.log({"im_loss": im_loss})
 
         features_s = self.backbone_s(x)
@@ -404,11 +441,11 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
-            loss_stu += l2_sp
+            loss_stu += self.lam * l2_sp
             wandb.log({"l2_sp": l2_sp})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += 10 * mem_loss
+            loss_stu += mem_loss
             wandb.log({"mem_loss": mem_loss})
 
         # self.scheduler_s.step(im_loss, threshold=0.8)
