@@ -154,6 +154,9 @@ class Ours(TTAMethod):
         #     5,
         # )
 
+        self.ema_prototypes = torch.zeros(num_classes, num_channels, device=self.device)
+        self.decay = 0.9
+
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
     ):
@@ -345,6 +348,13 @@ class Ours(TTAMethod):
             selected_filter_ids,
         )
 
+        if self.c == 0:
+            self.ema_prototypes = prototypes.clone()
+        else:
+            self.ema_prototypes = (
+                self.decay * self.ema_prototypes + (1 - self.decay) * prototypes
+            )
+
         if self.c % 200 == 0:
             logger.info(f"Number of empty queues: {self.is_pqs_full()}")
 
@@ -353,14 +363,18 @@ class Ours(TTAMethod):
         features_aug_t2 = self.backbone_t2(x_aug)
 
         cntrs_t2_proto = self.contrastive_loss_proto(
-            features_t2, prototypes.detach(), labels_t1, margin=0.5
+            features_t2, self.ema_prototypes.detach(), labels_t1, margin=0.5
         )
         mse_t2 = F.mse_loss(
-            features_t2, prototypes[labels_t1].detach(), reduction="mean"
+            features_t2, self.ema_prototypes[labels_t1].detach(), reduction="mean"
         )
-        kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
+        kld_t2 = self.KL_Div_loss(features_t2, self.ema_prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
-            features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
+            features_t2,
+            self.ema_prototypes.detach(),
+            features_aug_t2,
+            labels=None,
+            mask=None,
         )
         im_loss = info_max_loss(outputs)
 
@@ -459,7 +473,7 @@ class Ours(TTAMethod):
         with torch.no_grad():
             self.rst = 0.01
             if self.rst > 0.0:
-                for nm, m in self.model_t2.named_modules():
+                for nm, m in self.model_s.named_modules():
                     for npp, p in m.named_parameters():
                         if npp in ["weight", "bias"] and p.requires_grad:
                             mask = (
