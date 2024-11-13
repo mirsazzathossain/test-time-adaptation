@@ -114,7 +114,7 @@ class Ours(TTAMethod):
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
 
         # setup priority queues for prototype updates
-        self.priority_queues = init_pqs(self.num_classes, max_size=20)
+        self.priority_queues = init_pqs(self.num_classes, max_size=10)
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
@@ -311,7 +311,7 @@ class Ours(TTAMethod):
             wandb.log({"ce_s_t1": loss_ce_s_t1.mean(0)})
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
             loss_ce_s_t2 = self.symmetric_cross_entropy(outputs_s, outputs_t2.detach())
-            loss_self_training += 0.5 * loss_ce_s_t2
+            # loss_self_training += 0.5 * loss_ce_s_t2
             wandb.log({"ce_s_t2": loss_ce_s_t2.mean(0)})
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
             loss_ce_s_aug_t1 = self.symmetric_cross_entropy(
