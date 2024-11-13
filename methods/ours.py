@@ -394,7 +394,7 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
-            loss_stu += l2_sp
+            # loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
 
         if "mem_loss" in self.cfg.Ours.LOSSES:
@@ -449,7 +449,7 @@ class Ours(TTAMethod):
 
         self.model_t2 = ema_update_model(
             model_to_update=self.model_t2,
-            model_to_merge=self.model_t1,
+            model_to_merge=self.model_s,
             momentum=self.m_teacher_momentum,
             device=self.device,
             update_all=True,
