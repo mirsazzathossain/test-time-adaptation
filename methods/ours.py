@@ -144,15 +144,15 @@ class Ours(TTAMethod):
         # keep a feature bank
         self.feature_bank = None
 
-        # self.scheduler_s = DomainShiftScheduler(
-        #     self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.001, 5
-        # )
-        # self.scheduler_backbone_t2 = DomainShiftScheduler(
-        #     self.optimizer_backbone_t2,
-        #     self.optimizer_backbone_t2.param_groups[0]["lr"],
-        #     0.001,
-        #     5,
-        # )
+        self.scheduler_s = DomainShiftScheduler(
+            self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.001, 5
+        )
+        self.scheduler_backbone_t2 = DomainShiftScheduler(
+            self.optimizer_backbone_t2,
+            self.optimizer_backbone_t2.param_groups[0]["lr"],
+            0.001,
+            5,
+        )
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -401,8 +401,8 @@ class Ours(TTAMethod):
             loss_stu += mem_loss
             wandb.log({"mem_loss": mem_loss})
 
-        # self.scheduler_s.step(im_loss, threshold=0.8)
-        # self.scheduler_backbone_t2.step(im_loss, threshold=0.8)
+        self.scheduler_s.step(im_loss, threshold=0.8)
+        self.scheduler_backbone_t2.step(im_loss, threshold=0.8)
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
@@ -456,18 +456,18 @@ class Ours(TTAMethod):
         )
 
         # Stochastic restore
-        # with torch.no_grad():
-        #     self.rst = 0.01
-        #     if self.rst > 0.0:
-        #         for nm, m in self.model_s.named_modules():
-        #             for npp, p in m.named_parameters():
-        #                 if npp in ["weight", "bias"] and p.requires_grad:
-        #                     mask = (
-        #                         (torch.rand(p.shape) < self.rst).float().to(self.device)
-        #                     )
-        #                     p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-        #                         1.0 - mask
-        #                     )
+        with torch.no_grad():
+            self.rst = 0.01
+            if self.rst > 0.0:
+                for nm, m in self.model_s.named_modules():
+                    for npp, p in m.named_parameters():
+                        if npp in ["weight", "bias"] and p.requires_grad:
+                            mask = (
+                                (torch.rand(p.shape) < self.rst).float().to(self.device)
+                            )
+                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                1.0 - mask
+                            )
 
         with torch.no_grad():
             if True:
