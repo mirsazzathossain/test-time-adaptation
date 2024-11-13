@@ -114,7 +114,7 @@ class Ours(TTAMethod):
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
 
         # setup priority queues for prototype updates
-        self.priority_queues = init_pqs(self.num_classes, max_size=15)
+        self.priority_queues = init_pqs(self.num_classes, max_size=20)
 
         # setup projector for contrastive loss
         if self.dataset_name == "cifar10_c":
