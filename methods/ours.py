@@ -24,7 +24,6 @@ from utils.misc import (
     confidence_condition,
     ema_update_model,
     init_pqs,
-    plot_tsne,
     pop_min_from_pqs,
     update_pqs,
 )
@@ -229,6 +228,68 @@ class Ours(TTAMethod):
                 count += 1
         return count
 
+    def conditional_loss_calculation(
+        self,
+        features,
+        outputs,
+        prototypes,
+        labels,
+        loss_type,
+        pqs,
+        loss_fn,
+        wandb_log_key,
+        scale_factor=1.0,
+    ):
+        """
+        Computes a loss (either symmetric cross-entropy or MSE) for only the non-empty classes in the priority queues.
+
+        Args:
+            features (Tensor): Features for MSE calculation.
+            outputs (Tensor): Model outputs (softmax or logits) for cross-entropy calculation.
+            prototypes (Tensor): Prototypes for each class.
+            labels (Tensor): Class labels for each sample.
+            loss_type (str): Type of loss - "mse" or "symmetric_cross_entropy".
+            pqs (dict): Dictionary of priority queues for each class.
+            loss_fn (callable): Loss function to use (e.g., `symmetric_cross_entropy` or `mse_loss`).
+            wandb_log_key (str): Key for logging the loss in WandB.
+            scale_factor (float): Scaling factor for the loss (default is 1.0).
+
+        Returns:
+            Tensor: Masked loss value computed only for non-empty classes.
+        """
+        # Check which classes have non-empty priority queues
+        num_classes = len(prototypes)
+        non_empty_class_mask = torch.tensor(
+            [bool(pqs[label].queue) for label in range(num_classes)],
+            dtype=torch.bool,
+            device=features.device if features is not None else outputs.device,
+        )
+
+        # Apply the mask based on labels, i.e., only consider samples with non-empty priority queues
+        sample_mask = non_empty_class_mask[labels]
+
+        # Compute loss only for non-empty classes
+        if sample_mask.any():
+            if loss_type == "mse":
+                masked_features = features[sample_mask]
+                masked_prototypes = prototypes[labels[sample_mask]].detach()
+                loss = loss_fn(masked_features, masked_prototypes, reduction="mean")
+            else:
+                raise ValueError(
+                    "Unsupported loss_type. Use 'symmetric_cross_entropy' or 'mse'."
+                )
+        else:
+            # Set loss to zero if all classes are empty
+            loss = torch.tensor(
+                0.0, device=features.device if features is not None else outputs.device
+            )
+
+        # Log the loss in WandB
+        wandb.log({wandb_log_key: scale_factor * loss})
+
+        # Optionally scale and return the loss
+        return scale_factor * loss
+
     def loss_calculation(self, x, y=None):
         """
         Calculate the loss for the current batch.
@@ -346,13 +407,12 @@ class Ours(TTAMethod):
             selected_filter_ids,
         )
 
+        if self.c % 200 == 0:
+            logger.info(f"Number of empty queues: {self.is_pqs_full()}")
+
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
-
-        if self.c % 200 == 0:
-            logger.info(f"Number of empty queues: {self.is_pqs_full()}")
-            plot_tsne(features_t2, prototypes, y)
 
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
@@ -370,9 +430,9 @@ class Ours(TTAMethod):
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
-        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += 10 * mse_t2
-            wandb.log({"mse_t2_proto": 10 * mse_t2})
+        # if "mse_t2_proto" in self.cfg.Ours.LOSSES:
+        #     # loss_t2 += 10 * mse_t2
+        #     wandb.log({"mse_t2_proto": 10 * mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 100 * kld_t2
             wandb.log({"kld_t2_proto": 100 * kld_t2})
@@ -382,6 +442,21 @@ class Ours(TTAMethod):
         if "im_loss" in self.cfg.Ours.LOSSES:
             loss_t2 += 2 * im_loss
             wandb.log({"im_loss": im_loss})
+
+        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
+            mse_t2_loss = self.conditional_loss_calculation(
+                features=features_t2,
+                outputs=None,
+                prototypes=prototypes,
+                labels=labels_t1,
+                loss_type="mse",
+                pqs=self.priority_queues,
+                loss_fn=F.mse_loss,
+                wandb_log_key="mse_t2_proto",
+                scale_factor=10,
+            )
+            loss_t2 += mse_t2_loss
+            wandb.log({"mse_t2_proto": 10 * mse_t2})
 
         features_s = self.backbone_s(x)
         if self.c == 0:

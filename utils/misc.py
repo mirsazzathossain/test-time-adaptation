@@ -119,7 +119,7 @@ def pop_min_from_pqs(pqs, num_classes):
 
 def plot_tsne(features, prototypes, true_labels):
     # Convert tensors to numpy arrays for t-SNE and visualization
-    features_np = features.cpu().numpy()
+    features_np = features.cpu().dertach().numpy()
     prototypes_np = prototypes.cpu().numpy()
     true_labels_np = true_labels.cpu().numpy()
 
