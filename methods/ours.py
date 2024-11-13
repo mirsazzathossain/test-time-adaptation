@@ -366,7 +366,7 @@ class Ours(TTAMethod):
 
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += cntrs_t2_proto
+            loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 10 * mse_t2
@@ -449,7 +449,7 @@ class Ours(TTAMethod):
 
         self.model_t2 = ema_update_model(
             model_to_update=self.model_t2,
-            model_to_merge=self.model_s,
+            model_to_merge=self.model_t1,
             momentum=self.m_teacher_momentum,
             device=self.device,
             update_all=True,
