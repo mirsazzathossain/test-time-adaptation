@@ -191,7 +191,7 @@ class Ours(TTAMethod):
                 # Sort by entropy and select the top 5 minimum-entropy features for the class
                 sorted_indices = torch.argsort(class_entropies)
                 min_entropy_indices = (
-                    sorted_indices[:5] if len(sorted_indices) >= 5 else sorted_indices
+                    sorted_indices[:1] if len(sorted_indices) >= 1 else sorted_indices
                 )
 
                 selected_features = class_features[min_entropy_indices]

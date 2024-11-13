@@ -35,7 +35,7 @@ def evaluate(description):
     # setup wandb logging
     wandb.run.name = cfg.MODEL.ADAPTATION + "-" + cfg.SETTING + "-" + cfg.CORRUPTION.DATASET
 
-    information = "mse_add"
+    information = "add_1_forcefully"
     wandb.run.name += "-" + information
 
     # add current bangladesh time to the run name
