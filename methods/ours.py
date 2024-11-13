@@ -181,25 +181,25 @@ class Ours(TTAMethod):
             labels[selected_feature_id],
         )
 
-        # for class_label in range(num_classes):
-        #     if not pqs[class_label].queue:
-        #         # Get indices for the current class label
-        #         class_indices = (labels == class_label).nonzero(as_tuple=True)[0]
-        #         class_features = features[class_indices]
-        #         class_entropies = entropies[class_indices]
+        for class_label in range(num_classes):
+            if not pqs[class_label].queue:
+                # Get indices for the current class label
+                class_indices = (labels == class_label).nonzero(as_tuple=True)[0]
+                class_features = features[class_indices]
+                class_entropies = entropies[class_indices]
 
-        #         # Sort by entropy and select the top 5 minimum-entropy features for the class
-        #         sorted_indices = torch.argsort(class_entropies)
-        #         min_entropy_indices = (
-        #             sorted_indices[:1] if len(sorted_indices) >= 1 else sorted_indices
-        #         )
+                # Sort by entropy and select the top 5 minimum-entropy features for the class
+                sorted_indices = torch.argsort(class_entropies)
+                min_entropy_indices = (
+                    sorted_indices[:5] if len(sorted_indices) >= 5 else sorted_indices
+                )
 
-        #         selected_features = class_features[min_entropy_indices]
-        #         selected_entropies = class_entropies[min_entropy_indices]
+                selected_features = class_features[min_entropy_indices]
+                selected_entropies = class_entropies[min_entropy_indices]
 
-        #         # Add selected features and entropies to the priority queue
-        #         for feature, entropy in zip(selected_features, selected_entropies):
-        #             pqs[class_label].add(feature, entropy)
+                # Add selected features and entropies to the priority queue
+                for feature, entropy in zip(selected_features, selected_entropies):
+                    pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
         if self.c % 50 == 0:
@@ -455,7 +455,7 @@ class Ours(TTAMethod):
                 wandb_log_key="mse_t2_proto",
                 scale_factor=10,
             )
-            loss_t2 += mse_t2_loss
+            # loss_t2 += mse_t2_loss
             wandb.log({"mse_t2_proto": 10 * mse_t2})
 
         features_s = self.backbone_s(x)
@@ -593,6 +593,9 @@ class Ours(TTAMethod):
                     m.running_var = None
             elif isinstance(m, nn.BatchNorm1d):
                 m.train()
+                if bn is None or bn:
+                    m.requires_grad_(True)
+            elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
                 if bn is None or bn:
                     m.requires_grad_(True)
             else:
