@@ -370,11 +370,7 @@ class Ours(TTAMethod):
         )
         kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
-            features_t2,
-            prototypes.detach(),
-            features_aug_t2,
-            labels=None,
-            mask=None,
+            features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
         im_loss = info_max_loss(outputs)
 
@@ -461,19 +457,19 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        self.model_t2 = ema_update_model(
-            model_to_update=self.model_t2,
-            model_to_merge=self.model_s,
-            momentum=self.m_teacher_momentum,
-            device=self.device,
-            update_all=True,
-        )
+        # self.model_t2 = ema_update_model(
+        #     model_to_update=self.model_t2,
+        #     model_to_merge=self.model_s,
+        #     momentum=self.m_teacher_momentum,
+        #     device=self.device,
+        #     update_all=True,
+        # )
 
         # Stochastic restore
         with torch.no_grad():
             self.rst = 0.01
             if self.rst > 0.0:
-                for nm, m in self.model_s.named_modules():
+                for nm, m in self.model_t2.named_modules():
                     for npp, p in m.named_parameters():
                         if npp in ["weight", "bias"] and p.requires_grad:
                             mask = (
@@ -483,14 +479,14 @@ class Ours(TTAMethod):
                                 1.0 - mask
                             )
 
-        # with torch.no_grad():
-        #     if True:
-        #         prior = outputs.softmax(1).mean(0)
-        #         smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-        #             prior
-        #         )
-        #         smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-        #         outputs *= smoothed_prior
+        with torch.no_grad():
+            if True:
+                prior = outputs.softmax(1).mean(0)
+                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                    prior
+                )
+                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
