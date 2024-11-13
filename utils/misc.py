@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import wandb
 from sklearn.manifold import TSNE
+import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
@@ -116,41 +117,64 @@ def pop_min_from_pqs(pqs, num_classes):
                 min_entropies[class_label] = min_entropy
     return min_entropies
 
-def plot_tsne(pqs, prototypes, num_classes, dataset_name):
-    tsne_features = []
-    tsne_labels = []
+def plot_tsne(features, prototypes, true_labels):
+    # Convert tensors to numpy arrays for t-SNE and visualization
+    features_np = features.cpu().numpy()
+    prototypes_np = prototypes.cpu().numpy()
+    true_labels_np = true_labels.cpu().numpy()
 
-    for class_label in range(num_classes):
-        features = pqs[class_label].get_sorted_features()
-        features = [feature.cpu().numpy() for feature in features]
+    # Concatenate features and prototypes for t-SNE
+    all_features = np.vstack((features_np, prototypes_np))
+    all_labels = np.concatenate(
+        (true_labels_np, np.arange(prototypes_np.shape[0]))
+    )  # Class labels for prototypes
 
-        tsne_features.extend(features)
-        tsne_labels.extend([class_label] * len(features))
+    # Apply t-SNE to reduce to 2D
+    tsne = TSNE(n_components=2, random_state=42)
+    tsne_results = tsne.fit_transform(all_features)
 
-        prototype = prototypes[class_label].cpu().numpy()
-        tsne_features.append(prototype)
-        tsne_labels.append(f'Prototype_{class_label}')
+    # Split the transformed data back into test features and prototypes
+    test_tsne_results = tsne_results[: len(features_np)]
+    prototype_tsne_results = tsne_results[len(features_np) :]
 
-    tsne_features = np.array(tsne_features)
-
-    tsne = TSNE(n_components=2, random_state=0)
-    tsne_features = tsne.fit_transform(tsne_features)
-
+    # Set up the plot
     plt.figure(figsize=(10, 8))
-    for class_label in range(num_classes):
-        indices = [i for i, label in enumerate(tsne_labels) if label == class_label]
-        plt.scatter(tsne_features[indices, 0], tsne_features[indices, 1], label=f'Class {class_label}', alpha=0.6)
+    unique_labels = np.unique(true_labels_np)
+    palette = sns.color_palette("hsv", len(unique_labels))
 
-        prototype_index = tsne_labels.index(f'Prototype_{class_label}')
-        plt.scatter(tsne_features[prototype_index, 0], tsne_features[prototype_index, 1], color='black', marker='x', s=100, label=f'Prototype {class_label}')
+    # Plot test features with their ground truth labels
+    for label, color in zip(unique_labels, palette):
+        idx = true_labels_np == label
+        plt.scatter(
+            test_tsne_results[idx, 0],
+            test_tsne_results[idx, 1],
+            color=color,
+            label=f"Class {label}",
+            alpha=0.6,
+            edgecolor="k",
+            s=40,
+        )
 
+    # Plot prototypes with the same color as their corresponding class
+    for label, color in zip(unique_labels, palette):
+        plt.scatter(
+            prototype_tsne_results[label, 0],
+            prototype_tsne_results[label, 1],
+            color=color,
+            marker="X",
+            s=100,
+            edgecolor="k",
+        )
 
-    plt.title(f't-SNE visualization of features and prototypes for each class in {dataset_name} dataset')
-    plt.savefig(f"output/tsne_{dataset_name}_{wandb.run.id}.png")
+    plt.legend(loc="center left", bbox_to_anchor=(1, 0.5), title="Classes")
+    plt.title("t-SNE Visualization of Test Features and Class Prototypes")
+    plt.xlabel("t-SNE Component 1")
+    plt.ylabel("t-SNE Component 2")
+    plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust layout to make space for the legend
     plt.show()
 
-    wandb.log({"t-SNE": wandb.Image(f'output/tsne_{dataset_name}_{wandb.run.id}.png')})
-    os.remove(f'output/tsne_{dataset_name}_{wandb.run.id}.png')
+    wandb.log({"t-SNE": wandb.Image(f'output/tsne_cifar100c_{wandb.run.id}.png')})
+    os.remove(f"output/tsne_cifar100c_{wandb.run.id}.png")
     plt.close()
 
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):

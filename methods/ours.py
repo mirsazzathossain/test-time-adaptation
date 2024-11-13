@@ -24,6 +24,7 @@ from utils.misc import (
     confidence_condition,
     ema_update_model,
     init_pqs,
+    plot_tsne,
     pop_min_from_pqs,
     update_pqs,
 )
@@ -345,12 +346,13 @@ class Ours(TTAMethod):
             selected_filter_ids,
         )
 
-        if self.c % 200 == 0:
-            logger.info(f"Number of empty queues: {self.is_pqs_full()}")
-
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
+
+        if self.c % 200 == 0:
+            logger.info(f"Number of empty queues: {self.is_pqs_full()}")
+            plot_tsne(features_t2, prototypes, y)
 
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
@@ -460,16 +462,6 @@ class Ours(TTAMethod):
             self.rst = 0.01
             if self.rst > 0.0:
                 for nm, m in self.model_t2.named_modules():
-                    for npp, p in m.named_parameters():
-                        if npp in ["weight", "bias"] and p.requires_grad:
-                            mask = (
-                                (torch.rand(p.shape) < self.rst).float().to(self.device)
-                            )
-                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-                                1.0 - mask
-                            )
-
-                for nm, m in self.model_s.named_modules():
                     for npp, p in m.named_parameters():
                         if npp in ["weight", "bias"] and p.requires_grad:
                             mask = (
