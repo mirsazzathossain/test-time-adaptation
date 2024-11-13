@@ -407,7 +407,7 @@ class Ours(TTAMethod):
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
 
-        outputs = torch.nn.functional.softmax(outputs_t2, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
         return outputs, loss_stu, loss_t2
 
