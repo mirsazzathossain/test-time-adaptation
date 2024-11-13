@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import wandb
 from sklearn.manifold import TSNE
-import seaborn as sns
 
 logger = logging.getLogger(__name__)
 
