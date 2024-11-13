@@ -113,26 +113,6 @@ class Ours(TTAMethod):
 
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
 
-        # setup differential loss
-        # self.rms_norm = RMSNorm(num_classes, self.device)
-        # self.lamda_ = nn.Parameter(
-        #     torch.zeros(1, dtype=torch.float32, device=self.device, requires_grad=True)
-        # )
-        # self.lamda_.data.normal_(mean=0, std=0.1)
-
-        # self.optimizer_s.add_param_group(
-        #     {
-        #         "params": self.rms_norm.parameters(),
-        #         "lr": self.optimizer_s.param_groups[0]["lr"],
-        #     }
-        # )
-        # self.optimizer_s.add_param_group(
-        #     {
-        #         "params": self.lamda_,
-        #         "lr": self.optimizer_s.param_groups[0]["lr"],
-        #     }
-        # )
-
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
 
@@ -164,15 +144,15 @@ class Ours(TTAMethod):
         # keep a feature bank
         self.feature_bank = None
 
-        self.scheduler_s = DomainShiftScheduler(
-            self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.001, 5
-        )
-        self.scheduler_backbone_t2 = DomainShiftScheduler(
-            self.optimizer_backbone_t2,
-            self.optimizer_backbone_t2.param_groups[0]["lr"],
-            0.001,
-            5,
-        )
+        # self.scheduler_s = DomainShiftScheduler(
+        #     self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.001, 5
+        # )
+        # self.scheduler_backbone_t2 = DomainShiftScheduler(
+        #     self.optimizer_backbone_t2,
+        #     self.optimizer_backbone_t2.param_groups[0]["lr"],
+        #     0.001,
+        #     5,
+        # )
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -352,10 +332,6 @@ class Ours(TTAMethod):
         )
         selected_filter_ids = filter_ids_2
 
-        # selected_filter_ids = confidence_condition(
-        #     entropy_t1, entropy_t2, entropy_threshold=0.5
-        # )[0]
-
         # select prototypes from T1 model
         features_t1 = self.backbone_t1(x)
         labels_t1 = torch.argmax(outputs_t1, dim=1)
@@ -405,17 +381,6 @@ class Ours(TTAMethod):
             loss_t2 += 2 * im_loss
             wandb.log({"im_loss": im_loss})
 
-        # loss_differential = differential_loss(
-        #     outputs_s,
-        #     outputs_t1.detach(),
-        #     outputs_t2.detach(),
-        #     self.lamda_,
-        #     self.rms_norm,
-        # )
-        # if "differ_loss" in self.cfg.Ours.LOSSES:
-        #     # loss_stu += loss_differential
-        #     wandb.log({"differ_loss": loss_differential})
-
         features_s = self.backbone_s(x)
         if self.c == 0:
             mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
@@ -436,21 +401,8 @@ class Ours(TTAMethod):
             loss_stu += mem_loss
             wandb.log({"mem_loss": mem_loss})
 
-        # if self.prev_im_loss and im_loss - self.prev_im_loss > 0.8:
-        #     logger.info(f"Domain shift detected at iteration {self.c}, adjusting LR")
-        #     self.scheduler_counter = 5
-        #     self.optimizer_s.param_groups[0]["lr"] *= 1 / pow(
-        #         10, self.scheduler_counter
-        #     )
-
-        # if self.scheduler_counter > 0:
-        #     self.optimizer_s.param_groups[0]["lr"] *= 10
-        #     self.scheduler_counter -= 1
-
-        # self.prev_im_loss = im_loss
-
-        self.scheduler_s.step(im_loss, threshold=0.8)
-        self.scheduler_backbone_t2.step(im_loss, threshold=0.8)
+        # self.scheduler_s.step(im_loss, threshold=0.8)
+        # self.scheduler_backbone_t2.step(im_loss, threshold=0.8)
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
@@ -495,13 +447,13 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        # self.model_t2 = ema_update_model(
-        #     model_to_update=self.model_t2,
-        #     model_to_merge=self.model_s,
-        #     momentum=self.m_teacher_momentum,
-        #     device=self.device,
-        #     update_all=True,
-        # )
+        self.model_t2 = ema_update_model(
+            model_to_update=self.model_t2,
+            model_to_merge=self.model_s,
+            momentum=self.m_teacher_momentum,
+            device=self.device,
+            update_all=True,
+        )
 
         # Stochastic restore
         with torch.no_grad():
