@@ -194,7 +194,7 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        if self.c % 50 == 0:
+        if self.c % 5 == 0:
             _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
