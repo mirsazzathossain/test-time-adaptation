@@ -103,7 +103,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure student model
-        self.configure_model(self.model_s, bn=True)
+        self.configure_model(self.model_s)
         self.params_s, _ = self.collect_params(self.model_s)
         lr = self.cfg.OPTIM.LR
 
@@ -381,7 +381,7 @@ class Ours(TTAMethod):
 
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += cntrs_t2_proto
+            # loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 10 * mse_t2
