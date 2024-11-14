@@ -12,11 +12,11 @@ from models.model import split_up_model
 from utils.losses import (
     Entropy,
     L2SPLoss,
+    MMDLoss,
     RMSNorm,
     SymmetricCrossEntropy,
     differential_loss,
     info_max_loss,
-    MMDLoss
 )
 from utils.misc import (
     compute_prototypes,
@@ -159,9 +159,6 @@ class Ours(TTAMethod):
         self.backbone_s, _ = split_up_model(
             self.model_s, self.arch_name, self.dataset_name
         )
-
-        # keep a feature bank
-        self.feature_bank = None
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -339,22 +336,10 @@ class Ours(TTAMethod):
         if "differ_loss" in self.cfg.Ours.LOSSES:
             loss_stu += loss_differential
 
-        features_s = self.backbone_s(x)
-        if self.c == 0:
-            mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
-        else:
-            self.ghajini = MMDLoss()
-            mem_loss = self.ghajini(self.feature_bank.detach(), features_s)
-
-        self.feature_bank = features_s
-
         if "l2_sp" in self.cfg.Ours.LOSSES:
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             loss_stu += loss_l2_sp(self.model_s)
-
-        if "mem_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += mem_loss
 
         return outputs, loss_stu, loss_t2
 
@@ -405,27 +390,27 @@ class Ours(TTAMethod):
         )
 
         # Stochastic restore
-        # with torch.no_grad():
-        #     self.rst = 0.01
-        #     if self.rst > 0.0:
-        #         for nm, m in self.model_t2.named_modules():
-        #             for npp, p in m.named_parameters():
-        #                 if npp in ["weight", "bias"] and p.requires_grad:
-        #                     mask = (
-        #                         (torch.rand(p.shape) < self.rst).float().to(self.device)
-        #                     )
-        #                     p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
-        #                         1.0 - mask
-        #                     )
+        with torch.no_grad():
+            self.rst = 0.01
+            if self.rst > 0.0:
+                for nm, m in self.model_t2.named_modules():
+                    for npp, p in m.named_parameters():
+                        if npp in ["weight", "bias"] and p.requires_grad:
+                            mask = (
+                                (torch.rand(p.shape) < self.rst).float().to(self.device)
+                            )
+                            p.data = self.model_states[0][f"{nm}.{npp}"] * mask + p * (
+                                1.0 - mask
+                            )
 
-        # with torch.no_grad():
-        #     if True:
-        #         prior = outputs.softmax(1).mean(0)
-        #         smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-        #             prior
-        #         )
-        #         smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-        #         outputs *= smoothed_prior
+        with torch.no_grad():
+            if True:
+                prior = outputs.softmax(1).mean(0)
+                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+                    prior
+                )
+                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+                outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
