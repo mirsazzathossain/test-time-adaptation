@@ -306,6 +306,10 @@ class Ours(TTAMethod):
         # final output
         outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
 
+        wandb.log(
+            {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
+        )
+
         # student model loss
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
@@ -400,6 +404,8 @@ class Ours(TTAMethod):
         if "differ_loss" in self.cfg.Ours.LOSSES:
             # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
+
+        # outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
         return outputs, loss_stu, loss_t2
 
