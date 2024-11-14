@@ -118,6 +118,19 @@ class Ours(TTAMethod):
         )
         self.lamda_.data.normal_(mean=0, std=0.1)
 
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.rms_norm.parameters(),
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+        self.optimizer_s.add_param_group(
+            {
+                "params": self.lamda_,
+                "lr": self.optimizer_s.param_groups[0]["lr"],
+            }
+        )
+
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
 
@@ -289,11 +302,7 @@ class Ours(TTAMethod):
         )
 
         # final output
-        outputs = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
-
-        wandb.log(
-            {"ce_t1_t2": self.symmetric_cross_entropy(outputs_t1, outputs_t2).mean(0)}
-        )
+        outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
 
         # student model loss
         loss_self_training = 0.0
@@ -349,16 +358,29 @@ class Ours(TTAMethod):
         mse_t2 = F.mse_loss(
             features_t2, prototypes[labels_t1].detach(), reduction="mean"
         )
+        kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
         im_loss = info_max_loss(outputs)
+        loss_differential = differential_loss(
+            outputs_s,
+            outputs_t1.detach(),
+            outputs_t2.detach(),
+            self.lamda_,
+            self.rms_norm,
+        )
 
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2_proto
+            wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             loss_t2 += 10 * mse_t2
+            wandb.log({"mse_t2_proto": mse_t2})
+        if "kld_t2_proto" in self.cfg.Ours.LOSSES:
+            # loss_t2 += 100 * kld_t2
+            wandb.log({"kld_t2_proto": kld_t2})
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
             wandb.log({"contr_t2": cntrs_t2})
@@ -371,21 +393,9 @@ class Ours(TTAMethod):
             l2_sp = loss_l2_sp(self.model_s)
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
-
-        loss_differential = differential_loss(
-            outputs_s,
-            outputs_t1.detach(),
-            outputs_t2.detach(),
-            self.lamda_,
-            self.rms_norm,
-        )
         if "differ_loss" in self.cfg.Ours.LOSSES:
             loss_stu += loss_differential
-
-        wandb.log({"loss_stu": loss_stu})
-        wandb.log({"loss_t2": loss_t2})
-
-        outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
+            wandb.log({"differ_loss": loss_differential})
 
         return outputs, loss_stu, loss_t2
 
@@ -515,6 +525,24 @@ class Ours(TTAMethod):
             model.load_state_dict(model_state, strict=True)
         for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
             optimizer.load_state_dict(optimizer_state)
+
+    def KL_Div_loss(self, features, prototypes, labels):
+        """
+        Compute the KL divergence loss between the features and prototypes.
+
+        Args:
+            features (Tensor): Extracted features for the current batch
+            prototypes (Tensor): Prototypes for the current batch
+            labels (Tensor): Ground truth labels for the current batch
+
+        Returns:
+            Tensor: KL divergence loss
+        """
+        prototypes = prototypes[labels]
+        prob1 = F.softmax(features, dim=1)
+        prob2 = F.softmax(prototypes, dim=1)
+
+        return F.kl_div(prob1.log(), prob2, reduction="batchmean")
 
     def contrastive_loss_proto(self, feature, prototypes, labels, margin=0.5):
         """
