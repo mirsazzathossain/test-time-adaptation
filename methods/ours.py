@@ -16,6 +16,7 @@ from utils.losses import (
     SymmetricCrossEntropy,
     differential_loss,
     info_max_loss,
+    MMDLoss
 )
 from utils.misc import (
     compute_prototypes,
