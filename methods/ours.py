@@ -387,7 +387,7 @@ class Ours(TTAMethod):
             loss_t2 += 10 * mse_t2
             wandb.log({"mse_t2_proto": mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += 100 * kld_t2
+            # loss_t2 += 100 * kld_t2
             wandb.log({"kld_t2_proto": kld_t2})
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
@@ -399,7 +399,7 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
-            loss_stu += l2_sp
+            # loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
         if "differ_loss" in self.cfg.Ours.LOSSES:
             loss_stu += loss_differential
