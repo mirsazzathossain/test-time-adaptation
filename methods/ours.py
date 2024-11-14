@@ -103,7 +103,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure student model
-        self.configure_model(self.model_s)
+        self.configure_model(self.model_s, bn=True)
         self.params_s, _ = self.collect_params(self.model_s)
         lr = self.cfg.OPTIM.LR
 
@@ -336,7 +336,7 @@ class Ours(TTAMethod):
         if "differ_loss" in self.cfg.Ours.LOSSES:
             loss_stu += loss_differential
 
-        if "l2_sp" in self.cfg.Ours.LOSSES:
+        if "l2_sp" in self.cfg.Ours.LOSSES:  # use only for ImageNet-c
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             loss_stu += loss_l2_sp(self.model_s)
