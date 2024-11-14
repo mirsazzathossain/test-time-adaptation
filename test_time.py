@@ -256,6 +256,6 @@ if __name__ == '__main__':
         print("WANDB_API_KEY not found in environment variables.")
     # ========================================================================== 
     
-    wandb.init(project="tta", dir="output")
+    wandb.init(project="tta-v2", dir="output")
 
     evaluate('"Evaluation.')
