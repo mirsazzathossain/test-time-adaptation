@@ -12,6 +12,7 @@ from models.model import split_up_model
 from utils.losses import (
     Entropy,
     L2SPLoss,
+    RMSNorm,
     SymmetricCrossEntropy,
     differential_loss,
     info_max_loss,
@@ -109,6 +110,13 @@ class Ours(TTAMethod):
             self.optimizer_s = self.setup_optimizer(self.params_s, lr)
 
         _ = self.get_number_trainable_params(self.params_s, self.model_s)
+
+        # setup differential loss
+        self.rms_norm = RMSNorm(num_classes, self.device)
+        self.lamda_ = nn.Parameter(
+            torch.zeros(1, dtype=torch.float32, device=self.device, requires_grad=True)
+        )
+        self.lamda_.data.normal_(mean=0, std=0.1)
 
         # setup priority queues for prototype updates
         self.priority_queues = init_pqs(self.num_classes, max_size=10)
