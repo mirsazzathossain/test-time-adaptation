@@ -93,7 +93,7 @@ class Ours(TTAMethod):
             self.model_t2, self.arch_name, self.dataset_name
         )
         self.optimizer_backbone_t2 = self.setup_optimizer(
-            self.backbone_t2.parameters(), 0.0001
+            self.backbone_t2.parameters(), 0.001
         )
 
         # setup student model
