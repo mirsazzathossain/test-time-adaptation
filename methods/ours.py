@@ -13,6 +13,7 @@ from utils.losses import (
     Entropy,
     L2SPLoss,
     SymmetricCrossEntropy,
+    differential_loss,
     info_max_loss,
 )
 from utils.misc import (
@@ -334,12 +335,22 @@ class Ours(TTAMethod):
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
+        cntrs_t2_proto = self.contrastive_loss_proto(
+            features_t2, prototypes.detach(), labels_t1, margin=0.5
+        )
+        mse_t2 = F.mse_loss(
+            features_t2, prototypes[labels_t1].detach(), reduction="mean"
+        )
         cntrs_t2 = self.contrastive_loss(
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
         im_loss = info_max_loss(outputs)
 
         loss_t2 = 0.0
+        if "contr_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += cntrs_t2_proto
+        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += 10 * mse_t2
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
             wandb.log({"contr_t2": cntrs_t2})
@@ -352,6 +363,16 @@ class Ours(TTAMethod):
             l2_sp = loss_l2_sp(self.model_s)
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
+
+        loss_differential = differential_loss(
+            outputs_s,
+            outputs_t1.detach(),
+            outputs_t2.detach(),
+            self.lamda_,
+            self.rms_norm,
+        )
+        if "differ_loss" in self.cfg.Ours.LOSSES:
+            loss_stu += loss_differential
 
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
