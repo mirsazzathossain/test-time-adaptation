@@ -508,6 +508,44 @@ class Ours(TTAMethod):
         for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
             optimizer.load_state_dict(optimizer_state)
 
+    def contrastive_loss_proto(self, feature, prototypes, labels, margin=0.5):
+        """
+        Compute the contrastive loss between the features and prototypes.
+
+        Args:
+            feature (Tensor): Extracted features for the current batch
+            prototypes (Tensor): Prototypes for the current batch
+            labels (Tensor): Ground truth labels for the current batch
+            margin (float): Margin value for the contrastive loss
+
+        Returns:
+            Tensor: Contrastive loss
+        """
+        # normalize the features and prototypes
+        feature = F.normalize(feature, p=2, dim=1)
+        prototypes = F.normalize(prototypes, p=2, dim=1)
+
+        # compute the cosine similarity between features and prototypes
+        cosine_sim = torch.matmul(feature, prototypes.T)
+
+        # get the positive similarities (correct class)
+        pos_sim = cosine_sim[torch.arange(cosine_sim.size(0)), labels]
+
+        # mask to ignore the correct class in negative similarities
+        mask = torch.ones_like(cosine_sim, dtype=bool)
+        mask[torch.arange(cosine_sim.size(0)), labels] = False
+
+        # compute the loss
+        loss = 0.0
+        for i in range(cosine_sim.size(0)):
+            neg_sim = cosine_sim[i][mask[i]]
+            losses = F.relu(margin - pos_sim[i] + neg_sim)
+            loss += losses.mean()
+
+        loss /= cosine_sim.size(0)
+
+        return loss
+
     def contrastive_loss(
         self, features, prototypes, features_aug, labels=None, mask=None
     ):
