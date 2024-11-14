@@ -94,7 +94,7 @@ class Ours(TTAMethod):
             self.model_t2, self.arch_name, self.dataset_name
         )
         self.optimizer_backbone_t2 = self.setup_optimizer(
-            self.backbone_t2.parameters(), 0.00025
+            self.backbone_t2.parameters(), 0.01
         )
 
         # setup student model
@@ -405,7 +405,7 @@ class Ours(TTAMethod):
             # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
 
-        # outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
 
         return outputs, loss_stu, loss_t2
 
