@@ -103,7 +103,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure student model
-        self.configure_model(self.model_s)
+        self.configure_model(self.model_s, bn=True)
         self.params_s, _ = self.collect_params(self.model_s)
         lr = self.cfg.OPTIM.LR
 
@@ -381,10 +381,10 @@ class Ours(TTAMethod):
 
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += cntrs_t2_proto
+            loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += 10 * mse_t2
+            loss_t2 += 10 * mse_t2
             wandb.log({"mse_t2_proto": mse_t2})
         if "kld_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 100 * kld_t2
@@ -402,7 +402,7 @@ class Ours(TTAMethod):
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            # loss_stu += loss_differential
+            loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
 
         outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
