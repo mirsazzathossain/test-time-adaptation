@@ -12,14 +12,10 @@ from models.model import split_up_model
 from utils.losses import (
     Entropy,
     L2SPLoss,
-    MMDLoss,
-    RMSNorm,
     SymmetricCrossEntropy,
-    differential_loss,
     info_max_loss,
 )
 from utils.misc import (
-    DomainShiftScheduler,
     compute_prototypes,
     confidence_condition,
     ema_update_model,
@@ -140,19 +136,6 @@ class Ours(TTAMethod):
         self.backbone_s, _ = split_up_model(
             self.model_s, self.arch_name, self.dataset_name
         )
-
-        # keep a feature bank
-        self.feature_bank = None
-
-        # self.scheduler_s = DomainShiftScheduler(
-        #     self.optimizer_s, self.optimizer_s.param_groups[0]["lr"], 0.1, 5
-        # )
-        # self.scheduler_backbone_t2 = DomainShiftScheduler(
-        #     self.optimizer_backbone_t2,
-        #     self.optimizer_backbone_t2.param_groups[0]["lr"],
-        #     0.1,
-        #     5,
-        # )
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -351,45 +334,18 @@ class Ours(TTAMethod):
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
-
-        cntrs_t2_proto = self.contrastive_loss_proto(
-            features_t2, prototypes.detach(), labels_t1, margin=0.5
-        )
-        mse_t2 = F.mse_loss(
-            features_t2, prototypes[labels_t1].detach(), reduction="mean"
-        )
-        kld_t2 = self.KL_Div_loss(features_t2, prototypes.detach(), labels_t1)
         cntrs_t2 = self.contrastive_loss(
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
         im_loss = info_max_loss(outputs)
 
         loss_t2 = 0.0
-        if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += cntrs_t2_proto
-            wandb.log({"contr_t2_proto": cntrs_t2_proto})
-        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += 10 * mse_t2
-            wandb.log({"mse_t2_proto": 10 * mse_t2})
-        if "kld_t2_proto" in self.cfg.Ours.LOSSES:
-            # loss_t2 += 100 * kld_t2
-            wandb.log({"kld_t2_proto": 100 * kld_t2})
         if "contr_t2" in self.cfg.Ours.LOSSES:
             loss_t2 += cntrs_t2
             wandb.log({"contr_t2": cntrs_t2})
         if "im_loss" in self.cfg.Ours.LOSSES:
             loss_t2 += 2 * im_loss
             wandb.log({"im_loss": im_loss})
-
-        features_s = self.backbone_s(x)
-        if self.c == 0:
-            mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
-        else:
-            self.ghajini = MMDLoss()
-            mem_loss = self.ghajini(self.feature_bank.detach(), features_s)
-
-        self.feature_bank = features_s
-
         if "l2_sp" in self.cfg.Ours.LOSSES:
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
@@ -397,17 +353,10 @@ class Ours(TTAMethod):
             loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
 
-        if "mem_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += mem_loss
-            wandb.log({"mem_loss": mem_loss})
-
-        # self.scheduler_s.step(im_loss, threshold=0.8)
-        # self.scheduler_backbone_t2.step(im_loss, threshold=0.8)
-
         wandb.log({"loss_stu": loss_stu})
         wandb.log({"loss_t2": loss_t2})
 
-        outputs = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
+        outputs = torch.nn.functional.softmax(outputs_t2, dim=1)
 
         return outputs, loss_stu, loss_t2
 
@@ -537,62 +486,6 @@ class Ours(TTAMethod):
             model.load_state_dict(model_state, strict=True)
         for optimizer, optimizer_state in zip(self.optimizers, self.optimizer_states):
             optimizer.load_state_dict(optimizer_state)
-
-    def KL_Div_loss(self, features, prototypes, labels):
-        """
-        Compute the KL divergence loss between the features and prototypes.
-
-        Args:
-            features (Tensor): Extracted features for the current batch
-            prototypes (Tensor): Prototypes for the current batch
-            labels (Tensor): Ground truth labels for the current batch
-
-        Returns:
-            Tensor: KL divergence loss
-        """
-        prototypes = prototypes[labels]
-        prob1 = F.softmax(features, dim=1)
-        prob2 = F.softmax(prototypes, dim=1)
-
-        return F.kl_div(prob1.log(), prob2, reduction="batchmean")
-
-    def contrastive_loss_proto(self, feature, prototypes, labels, margin=0.5):
-        """
-        Compute the contrastive loss between the features and prototypes.
-
-        Args:
-            feature (Tensor): Extracted features for the current batch
-            prototypes (Tensor): Prototypes for the current batch
-            labels (Tensor): Ground truth labels for the current batch
-            margin (float): Margin value for the contrastive loss
-
-        Returns:
-            Tensor: Contrastive loss
-        """
-        # normalize the features and prototypes
-        feature = F.normalize(feature, p=2, dim=1)
-        prototypes = F.normalize(prototypes, p=2, dim=1)
-
-        # compute the cosine similarity between features and prototypes
-        cosine_sim = torch.matmul(feature, prototypes.T)
-
-        # get the positive similarities (correct class)
-        pos_sim = cosine_sim[torch.arange(cosine_sim.size(0)), labels]
-
-        # mask to ignore the correct class in negative similarities
-        mask = torch.ones_like(cosine_sim, dtype=bool)
-        mask[torch.arange(cosine_sim.size(0)), labels] = False
-
-        # compute the loss
-        loss = 0.0
-        for i in range(cosine_sim.size(0)):
-            neg_sim = cosine_sim[i][mask[i]]
-            losses = F.relu(margin - pos_sim[i] + neg_sim)
-            loss += losses.mean()
-
-        loss /= cosine_sim.size(0)
-
-        return loss
 
     def contrastive_loss(
         self, features, prototypes, features_aug, labels=None, mask=None
