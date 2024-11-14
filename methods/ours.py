@@ -208,7 +208,7 @@ class Ours(TTAMethod):
                     pqs[class_label].add(feature, entropy)
 
         # pop the minimum element from the priority queues every 5 batches
-        if self.c % 5 == 0:
+        if self.c % 50 == 0:
             _ = pop_min_from_pqs(pqs, num_classes)
 
         # compute the prototypes for the current batch
@@ -377,7 +377,7 @@ class Ours(TTAMethod):
 
         loss_t2 = 0.0
         if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += cntrs_t2_proto
+            # loss_t2 += cntrs_t2_proto
             wandb.log({"contr_t2_proto": cntrs_t2_proto})
         if "mse_t2_proto" in self.cfg.Ours.LOSSES:
             # loss_t2 += 10 * mse_t2
@@ -395,10 +395,10 @@ class Ours(TTAMethod):
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
-            # loss_stu += l2_sp
+            loss_stu += l2_sp
             wandb.log({"l2_sp": l2_sp})
         if "differ_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += loss_differential
+            # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
 
         return outputs, loss_stu, loss_t2
@@ -512,6 +512,8 @@ class Ours(TTAMethod):
                 m.train()
                 if bn is None or bn:
                     m.requires_grad_(True)
+            elif isinstance(m, (nn.LayerNorm, nn.GroupNorm)):
+                m.requires_grad_(True if bn else False)
             else:
                 m.requires_grad_(False if bn else True)
 
