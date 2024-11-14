@@ -102,7 +102,7 @@ class Ours(TTAMethod):
             param.detach_()
 
         # configure student model
-        self.configure_model(self.model_s, bn=True)
+        self.configure_model(self.model_s)
         self.params_s, _ = self.collect_params(self.model_s)
         lr = self.cfg.OPTIM.LR
 
@@ -158,6 +158,9 @@ class Ours(TTAMethod):
         self.backbone_s, _ = split_up_model(
             self.model_s, self.arch_name, self.dataset_name
         )
+
+        # keep a feature bank
+        self.feature_bank = None
 
     def prototype_updates(
         self, pqs, num_classes, features, entropies, labels, selected_feature_id
@@ -248,58 +251,11 @@ class Ours(TTAMethod):
         x = x[0]
         x_aug = self.tta_transform(x)
 
+        # get the outputs from the models
         outputs_s = self.model_s(x)
         outputs_t1 = self.model_t1(x)
         outputs_t2 = self.model_t2(x)
         outputs_stu_aug = self.model_s(x_aug)
-
-        comb_t1_t2 = torch.nn.functional.softmax(outputs_t1 + outputs_t2, dim=1)
-        comb_t1_t2_stu = torch.nn.functional.softmax(
-            outputs_t1 + outputs_t2 + outputs_s, dim=1
-        )
-        comb_t1_s = torch.nn.functional.softmax(outputs_t1 + outputs_s, dim=1)
-        comb_t2_s = torch.nn.functional.softmax(outputs_t2 + outputs_s, dim=1)
-
-        logits_t1 = torch.nn.functional.softmax(outputs_t1, dim=1)
-        logits_t2 = torch.nn.functional.softmax(outputs_t2, dim=1)
-        logits_s = torch.nn.functional.softmax(outputs_s, dim=1)
-
-        correct_t1 = torch.argmax(logits_t1, dim=1) == y
-        correct_t2 = torch.argmax(logits_t2, dim=1) == y
-        correct_s = torch.argmax(logits_s, dim=1) == y
-        correct_comb_t1_t2 = torch.argmax(comb_t1_t2, dim=1) == y
-        correct_comb_t1_t2_stu = torch.argmax(comb_t1_t2_stu, dim=1) == y
-        correct_comb_t1_s = torch.argmax(comb_t1_s, dim=1) == y
-        correct_comb_t2_s = torch.argmax(comb_t2_s, dim=1) == y
-
-        total_correct_t1 = correct_t1.sum()
-        total_correct_t2 = correct_t2.sum()
-        total_correct_s = correct_s.sum()
-        total_correct_comb_t1_t2 = correct_comb_t1_t2.sum()
-        total_correct_comb_t1_t2_stu = correct_comb_t1_t2_stu.sum()
-        total_correct_comb_t1_s = correct_comb_t1_s.sum()
-        total_correct_comb_t2_s = correct_comb_t2_s.sum()
-
-        error_t1 = 1 - total_correct_t1 / x.size(0)
-        error_t2 = 1 - total_correct_t2 / x.size(0)
-        error_s = 1 - total_correct_s / x.size(0)
-        error_comb_t1_t2 = 1 - total_correct_comb_t1_t2 / x.size(0)
-        error_comb_t1_t2_stu = 1 - total_correct_comb_t1_t2_stu / x.size(0)
-        error_comb_t1_s = 1 - total_correct_comb_t1_s / x.size(0)
-        error_comb_t2_s = 1 - total_correct_comb_t2_s / x.size(0)
-
-        # actual accuracy of three models
-        wandb.log(
-            {
-                "error_t1": error_t1,
-                "error_t2": error_t2,
-                "error_s": error_s,
-                "error_comb_t1_t2": error_comb_t1_t2,
-                "error_comb_t1_t2_stu": error_comb_t1_t2_stu,
-                "error_comb_t1_s": error_comb_t1_s,
-                "error_comb_t2_s": error_comb_t2_s,
-            }
-        )
 
         # final output
         outputs = torch.nn.functional.softmax(outputs_t1.detach() + outputs_t2, dim=1)
@@ -307,23 +263,21 @@ class Ours(TTAMethod):
         # student model loss
         loss_self_training = 0.0
         if "ce_s_t1" in self.cfg.Ours.LOSSES:
-            loss_ce_s_t1 = self.symmetric_cross_entropy(outputs_s, outputs_t1.detach())
-            loss_self_training += 0.5 * loss_ce_s_t1
-            wandb.log({"ce_s_t1": loss_ce_s_t1.mean(0)})
+            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+                outputs_s, outputs_t1.detach()
+            )
         if "ce_s_t2" in self.cfg.Ours.LOSSES:
-            loss_ce_s_t2 = self.symmetric_cross_entropy(outputs_s, outputs_t2.detach())
-            loss_self_training += 0.5 * loss_ce_s_t2
-            wandb.log({"ce_s_t2": loss_ce_s_t2.mean(0)})
+            loss_self_training += 0.5 * self.symmetric_cross_entropy(
+                outputs_s, outputs_t2.detach()
+            )
         if "ce_s_aug_t1" in self.cfg.Ours.LOSSES:
-            loss_ce_s_aug_t1 = self.symmetric_cross_entropy(
+            loss_self_training += 0.5 * self.symmetric_cross_entropy(
                 outputs_stu_aug, outputs_t1.detach()
             )
-            loss_self_training += 0.5 * loss_ce_s_aug_t1
-            wandb.log({"ce_s_aug_t1": loss_ce_s_aug_t1.mean(0)})
         loss_stu = loss_self_training.mean(0)
-        wandb.log({"loss_stu_ce": loss_stu})
 
         # calculate the entropy of the outputs
+        entropy_s = self.ent(outputs_s)
         entropy_t1 = self.ent(outputs_t1)
         entropy_t2 = self.ent(outputs_t2)
 
@@ -346,12 +300,10 @@ class Ours(TTAMethod):
             selected_filter_ids,
         )
 
-        if self.c % 200 == 0:
-            logger.info(f"Number of empty queues: {self.is_pqs_full()}")
-
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
         features_aug_t2 = self.backbone_t2(x_aug)
+
         cntrs_t2_proto = self.contrastive_loss_proto(
             features_t2, prototypes.detach(), labels_t1, margin=0.5
         )
@@ -363,6 +315,19 @@ class Ours(TTAMethod):
             features_t2, prototypes.detach(), features_aug_t2, labels=None, mask=None
         )
         im_loss = info_max_loss(outputs)
+
+        loss_t2 = 0.0
+        if "contr_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += cntrs_t2_proto
+        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += 10 * mse_t2
+        if "kld_t2_proto" in self.cfg.Ours.LOSSES:
+            loss_t2 += 100 * kld_t2
+        if "contr_t2" in self.cfg.Ours.LOSSES:
+            loss_t2 += cntrs_t2
+        if "im_loss" in self.cfg.Ours.LOSSES:
+            loss_t2 += 2 * im_loss
+
         loss_differential = differential_loss(
             outputs_s,
             outputs_t1.detach(),
@@ -370,32 +335,25 @@ class Ours(TTAMethod):
             self.lamda_,
             self.rms_norm,
         )
+        if "differ_loss" in self.cfg.Ours.LOSSES:
+            loss_stu += loss_differential
 
-        loss_t2 = 0.0
-        if "contr_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += cntrs_t2_proto
-            wandb.log({"contr_t2_proto": cntrs_t2_proto})
-        if "mse_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += 10 * mse_t2
-            wandb.log({"mse_t2_proto": mse_t2})
-        if "kld_t2_proto" in self.cfg.Ours.LOSSES:
-            loss_t2 += 100 * kld_t2
-            wandb.log({"kld_t2_proto": kld_t2})
-        if "contr_t2" in self.cfg.Ours.LOSSES:
-            loss_t2 += cntrs_t2
-            wandb.log({"contr_t2": cntrs_t2})
-        if "im_loss" in self.cfg.Ours.LOSSES:
-            loss_t2 += 2 * im_loss
-            wandb.log({"im_loss": im_loss})
+        features_s = self.backbone_s(x)
+        if self.c == 0:
+            mem_loss = torch.tensor(0.0, device=self.device, requires_grad=True)
+        else:
+            self.ghajini = MMDLoss()
+            mem_loss = self.ghajini(self.feature_bank.detach(), features_s)
+
+        self.feature_bank = features_s
+
         if "l2_sp" in self.cfg.Ours.LOSSES:
             pretrained_weights = self.model_states[0]
             loss_l2_sp = L2SPLoss(pretrained_weights)
-            l2_sp = loss_l2_sp(self.model_s)
-            loss_stu += l2_sp
-            wandb.log({"l2_sp": l2_sp})
-        if "differ_loss" in self.cfg.Ours.LOSSES:
-            loss_stu += loss_differential
-            wandb.log({"differ_loss": loss_differential})
+            loss_stu += loss_l2_sp(self.model_s)
+
+        if "mem_loss" in self.cfg.Ours.LOSSES:
+            loss_stu += mem_loss
 
         return outputs, loss_stu, loss_t2
 
@@ -445,7 +403,7 @@ class Ours(TTAMethod):
             update_all=True,
         )
 
-        # # Stochastic restore
+        # Stochastic restore
         # with torch.no_grad():
         #     self.rst = 0.01
         #     if self.rst > 0.0:
@@ -459,14 +417,14 @@ class Ours(TTAMethod):
         #                         1.0 - mask
         #                     )
 
-        with torch.no_grad():
-            if True:
-                prior = outputs.softmax(1).mean(0)
-                smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
-                    prior
-                )
-                smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
-                outputs *= smoothed_prior
+        # with torch.no_grad():
+        #     if True:
+        #         prior = outputs.softmax(1).mean(0)
+        #         smooth = max(1 / outputs.shape[0], 1 / outputs.shape[1]) / torch.max(
+        #             prior
+        #         )
+        #         smoothed_prior = (prior + smooth) / (1 + smooth * outputs.shape[1])
+        #         outputs *= smoothed_prior
 
         self.c = self.c + 1
         return outputs
