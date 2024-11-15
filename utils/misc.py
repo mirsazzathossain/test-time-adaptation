@@ -155,8 +155,9 @@ def plot_tsne(features, prototypes, true_labels):
     plt.xlabel("Component 1")
     plt.ylabel("Component 2")
     plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust layout to make space for the legend
+    plt.savefig(f"output/tsne_cifar100c_{wandb.run.id}.png")
     plt.savefig(f"output/tsne_cifar100c_{wandb.run.id}.pdf")
-    wandb.log({"t-SNE": wandb.Image(f'output/tsne_cifar100c_{wandb.run.id}.pdf')})
+    wandb.log({"t-SNE": wandb.Image(f'output/tsne_cifar100c_{wandb.run.id}.png')})
     plt.show()
     plt.close()
 
