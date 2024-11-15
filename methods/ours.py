@@ -349,8 +349,8 @@ class Ours(TTAMethod):
 
         if self.c % 200 == 0:
             logger.info(f"Number of empty queues: {self.is_pqs_full()}")
-            print(features_t1.shape, prototypes.shape, y.shape)
-            plot_tsne(features_t1, prototypes, y)
+            # print(features_t1.shape, prototypes.shape, y.shape)
+            # plot_tsne(features_t1, prototypes, y)
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
@@ -395,7 +395,7 @@ class Ours(TTAMethod):
             loss_l2_sp = L2SPLoss(pretrained_weights)
             l2_sp = loss_l2_sp(self.model_s)
             loss_stu += l2_sp
-            # wandb.log({"l2_sp": l2_sp})
+            wandb.log({"l2_sp": l2_sp})
         if "differ_loss" in self.cfg.Ours.LOSSES:
             # loss_stu += loss_differential
             wandb.log({"differ_loss": loss_differential})
