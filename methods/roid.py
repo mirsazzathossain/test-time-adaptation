@@ -92,7 +92,7 @@ class ROID(TTAMethod):
         return outputs, loss
 
     @torch.enable_grad()
-    def forward_and_adapt(self, x):
+    def forward_and_adapt(self, x, y):
         if self.mixed_precision and self.device == "cuda":
             with torch.cuda.amp.autocast():
                 outputs, loss = self.loss_calculation(x)

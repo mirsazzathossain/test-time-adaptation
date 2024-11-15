@@ -28,7 +28,7 @@ class Tent(TTAMethod):
         return outputs, loss
 
     @torch.enable_grad()
-    def forward_and_adapt(self, x):
+    def forward_and_adapt(self, x, y):
         """Forward and adapt model on batch of data.
         Measure entropy of the model prediction, take gradients, and update params.
         """
