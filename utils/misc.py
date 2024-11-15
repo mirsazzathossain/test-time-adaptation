@@ -117,7 +117,6 @@ def pop_min_from_pqs(pqs, num_classes):
     return min_entropies
 
 def plot_tsne(features, prototypes, true_labels):
-
     # Convert tensors to numpy arrays for t-SNE and visualization
     features_np = features.detach().cpu().numpy()
     prototypes_np = prototypes.detach().cpu().numpy()
@@ -147,19 +146,18 @@ def plot_tsne(features, prototypes, true_labels):
                     color=color, label=f'Class {label}', alpha=0.6, edgecolor='k', s=40)
 
     # Plot prototypes with the same color as their corresponding class
-    for label, color in zip(unique_labels, palette):
+    for label in range(prototypes_np.shape[0]):
         plt.scatter(prototype_tsne_results[label, 0], prototype_tsne_results[label, 1],
-                    color=color, marker='X', s=100, edgecolor='k')
+                    color=palette[label % len(palette)], marker='X', s=100, edgecolor='k')
 
     plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), title="Classes")
     plt.title("t-SNE Visualization of Test Features and Class Prototypes")
     plt.xlabel("Component 1")
     plt.ylabel("Component 2")
     plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust layout to make space for the legend
+    plt.savefig(f"output/tsne_cifar100c_{wandb.run.id}.pdf")
+    wandb.log({"t-SNE": wandb.Image(f'output/tsne_cifar100c_{wandb.run.id}.pdf')})
     plt.show()
-    plt.savefig(f"output/tsne_cifar100c_{wandb.run.id}_.pdf")
-    wandb.log({"t-SNE": wandb.Image(f'output/tsne_cifar100c_{wandb.run.id}.png')})
-    os.remove(f"output/tsne_cifar100c_{wandb.run.id}.png")
     plt.close()
 
 def confidence_condition(entropy_ema, entropy_ema2, entropy_threshold):
