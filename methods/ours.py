@@ -349,6 +349,7 @@ class Ours(TTAMethod):
 
         if self.c % 200 == 0:
             logger.info(f"Number of empty queues: {self.is_pqs_full()}")
+            print(features_t1.shape, prototypes.shape, y.shape)
             plot_tsne(features_t1, prototypes, y)
 
         # calculate the loss for the T2 model
