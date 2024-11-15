@@ -117,58 +117,44 @@ def pop_min_from_pqs(pqs, num_classes):
     return min_entropies
 
 def plot_tsne(features, prototypes, true_labels):
+
     # Convert tensors to numpy arrays for t-SNE and visualization
-    features_np = features.cpu().dertach().numpy()
-    prototypes_np = prototypes.cpu().numpy()
-    true_labels_np = true_labels.cpu().numpy()
+    features_np = features.detach().cpu().numpy()
+    prototypes_np = prototypes.detach().cpu().numpy()
+    true_labels_np = true_labels.detach().cpu().numpy()
 
     # Concatenate features and prototypes for t-SNE
     all_features = np.vstack((features_np, prototypes_np))
-    all_labels = np.concatenate(
-        (true_labels_np, np.arange(prototypes_np.shape[0]))
-    )  # Class labels for prototypes
+    all_labels = np.concatenate((true_labels_np, np.arange(prototypes_np.shape[0])))  # Class labels for prototypes
 
     # Apply t-SNE to reduce to 2D
     tsne = TSNE(n_components=2, random_state=42)
     tsne_results = tsne.fit_transform(all_features)
 
     # Split the transformed data back into test features and prototypes
-    test_tsne_results = tsne_results[: len(features_np)]
-    prototype_tsne_results = tsne_results[len(features_np) :]
+    test_tsne_results = tsne_results[:len(features_np)]
+    prototype_tsne_results = tsne_results[len(features_np):]
 
     # Set up the plot
     plt.figure(figsize=(10, 8))
     unique_labels = np.unique(true_labels_np)
-    palette = sns.color_palette("hsv", len(unique_labels))
+    palette = plt.get_cmap("tab10").colors
 
     # Plot test features with their ground truth labels
     for label, color in zip(unique_labels, palette):
         idx = true_labels_np == label
-        plt.scatter(
-            test_tsne_results[idx, 0],
-            test_tsne_results[idx, 1],
-            color=color,
-            label=f"Class {label}",
-            alpha=0.6,
-            edgecolor="k",
-            s=40,
-        )
+        plt.scatter(test_tsne_results[idx, 0], test_tsne_results[idx, 1],
+                    color=color, label=f'Class {label}', alpha=0.6, edgecolor='k', s=40)
 
     # Plot prototypes with the same color as their corresponding class
     for label, color in zip(unique_labels, palette):
-        plt.scatter(
-            prototype_tsne_results[label, 0],
-            prototype_tsne_results[label, 1],
-            color=color,
-            marker="X",
-            s=100,
-            edgecolor="k",
-        )
+        plt.scatter(prototype_tsne_results[label, 0], prototype_tsne_results[label, 1],
+                    color=color, marker='X', s=100, edgecolor='k')
 
-    plt.legend(loc="center left", bbox_to_anchor=(1, 0.5), title="Classes")
+    plt.legend(loc='center left', bbox_to_anchor=(1, 0.5), title="Classes")
     plt.title("t-SNE Visualization of Test Features and Class Prototypes")
-    plt.xlabel("t-SNE Component 1")
-    plt.ylabel("t-SNE Component 2")
+    plt.xlabel("Component 1")
+    plt.ylabel("Component 2")
     plt.tight_layout(rect=[0, 0, 0.85, 1])  # Adjust layout to make space for the legend
     plt.show()
 

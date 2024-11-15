@@ -22,6 +22,7 @@ from utils.misc import (
     confidence_condition,
     ema_update_model,
     init_pqs,
+    plot_tsne,
     pop_min_from_pqs,
     update_pqs,
 )
@@ -348,6 +349,7 @@ class Ours(TTAMethod):
 
         if self.c % 200 == 0:
             logger.info(f"Number of empty queues: {self.is_pqs_full()}")
+            plot_tsne(features_t1, prototypes, y)
 
         # calculate the loss for the T2 model
         features_t2 = self.backbone_t2(x)
